@@ -6,3 +6,4 @@ export * from './leadService';
 export * from './followUpService';
 export * from './campaignService';
 export * from './reportService';
+export * from './authService';

@@ -9,8 +9,20 @@ export class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  public getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  }
+
+  public setToken(token: string | null): void {
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      localStorage.removeItem('auth_token');
+    }
+  }
+
   private getHeaders(): HeadersInit {
-    const token = localStorage.getItem('auth_token');
+    const token = this.getToken();
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -18,7 +30,7 @@ export class ApiClient {
     };
   }
 
-  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  private async handleResponse<T>(response: Response, endpoint: string): Promise<ApiResponse<T>> {
     if (!response.ok) {
       let errorData: ApiError;
       try {
@@ -29,14 +41,26 @@ export class ApiClient {
           status: response.status,
         };
       }
+
+      // Handle session expiration on 401 (excluding initial login attempts)
+      if (response.status === 401 && !endpoint.includes('/auth/login')) {
+        this.setToken(null);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:session-expired', {
+            detail: { message: errorData.message || 'Your session has expired. Please log in again.' }
+          }));
+        }
+      }
+
       throw errorData;
     }
 
     const data = await response.json();
     return {
-      data,
+      data: data.data !== undefined ? data.data : data,
+      message: data.message,
       status: response.status,
-      success: true,
+      success: data.success !== undefined ? data.success : true,
     };
   }
 
@@ -51,7 +75,7 @@ export class ApiClient {
       method: 'GET',
       headers: this.getHeaders(),
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 
   async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -60,7 +84,7 @@ export class ApiClient {
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 
   async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -69,7 +93,16 @@ export class ApiClient {
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
+  }
+
+  async patch<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return this.handleResponse<T>(response, endpoint);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
@@ -77,7 +110,7 @@ export class ApiClient {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 }
 

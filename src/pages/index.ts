@@ -6,3 +6,5 @@ export * from './FollowUpsPage';
 export * from './CampaignsPage';
 export * from './ReportsPage';
 export * from './SettingsPage';
+export * from './LoginPage';
+export * from './UnauthorizedPage';

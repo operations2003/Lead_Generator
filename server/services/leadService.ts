@@ -109,6 +109,22 @@ export interface LeadFilterOptions {
   includeArchived?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  // Phase 9 Advanced Lead Discovery Filters
+  existingTools?: string;
+  existingTool?: string;
+  signals?: string;
+  hiringSignals?: string;
+  leadSignals?: string;
+  hiringVolume?: string;
+  followUpStatus?: string;
+  industry?: string;
+  location?: string;
+  employeeSize?: string;
+  productFit?: string;
+  jobTitle?: string;
+  decisionMaker?: boolean | string;
+  company?: string;
+  productRelevance?: string;
 }
 
 export interface LeadPipelineStageGroup {
@@ -127,6 +143,8 @@ export interface LeadDetailResponse {
   companyIndustry?: string;
   companyLocation?: string;
   companyProductFit?: string;
+  companyCurrentTools?: string | null;
+  companyHiringSignals?: string | null;
   contactId: string | null;
   contactName: string | null;
   contactTitle: string | null;
@@ -164,6 +182,9 @@ export interface LeadDetailResponse {
   updatedAt: string;
   qualificationBreakdown?: QualificationResult;
   stageHistory?: LeadStageHistoryItem[];
+  followUpStatus?: string;
+  followUpDueDate?: string | null;
+  detectedSignals?: string[];
 }
 
 export interface PaginatedLeadsResult {
@@ -181,11 +202,71 @@ export class LeadService {
     this.db = db || getDb();
   }
 
+  private extractLeadSignals(row: LeadWithRelationsRecord): string[] {
+    const signals = new Set<string>();
+    const text = `${row.title || ''} ${row.notes || ''} ${row.qualification_notes || ''} ${row.company_hiring_signals || ''} ${row.company_current_tools || ''}`.toLowerCase();
+    const industry = (row.company_industry || '').toLowerCase();
+    const tools = `${row.existing_tools || ''} ${row.company_current_tools || ''}`.toLowerCase();
+
+    // HireIQ signals
+    if (row.hiring_volume === 'High' || text.includes('bulk') || text.includes('mass hire') || text.includes('high-volume') || text.includes('high volume')) {
+      signals.add('Bulk hiring');
+      signals.add('High-volume hiring');
+    }
+    if (row.hiring_multiple_roles || text.includes('multiple roles') || text.includes('open roles')) {
+      signals.add('Multiple open roles');
+    }
+    if (text.includes('screen') || text.includes('resume') || row.ats_score != null) {
+      signals.add('Resume screening');
+    }
+    if (text.includes('shortlist') || row.ats_score != null) {
+      signals.add('Shortlisting');
+    }
+    if (tools.includes('ats') || tools.includes('greenhouse') || tools.includes('workable') || tools.includes('lever') || tools.includes('naukri') || tools.includes('recruit') || text.includes('ats') || row.source === 'Free ATS Score Check') {
+      signals.add('ATS');
+    }
+    if (industry.includes('staffing') || industry.includes('recruit') || text.includes('agency') || text.includes('recruitment agency')) {
+      signals.add('Recruitment agency');
+      signals.add('Staffing');
+    }
+    if (industry.includes('staffing') || text.includes('staffing')) {
+      signals.add('Staffing');
+    }
+    if (text.includes('rpo')) {
+      signals.add('RPO');
+    }
+
+    // HRMS signals
+    if (row.manual_hr_processes || text.includes('manual attendance') || text.includes('attendance') || text.includes('biometric')) {
+      signals.add('Manual attendance');
+    }
+    if (row.manual_hr_processes || tools.includes('excel') || text.includes('excel') || text.includes('spreadsheet')) {
+      signals.add('Excel HR processes');
+    }
+    if (row.manual_hr_processes || text.includes('payroll') || tools.includes('greythr') || tools.includes('keka') || tools.includes('darwinbox')) {
+      signals.add('Payroll');
+    }
+    if (text.includes('leave') || text.includes('time off') || text.includes('vacation')) {
+      signals.add('Leave management');
+    }
+    if (text.includes('employee record') || text.includes('personnel') || text.includes('records')) {
+      signals.add('Employee records');
+    }
+    if (row.product === 'HRMS Portal' || row.product === 'Both' || tools.includes('hrms') || tools.includes('zoho people') || tools.includes('darwinbox') || text.includes('hrms')) {
+      signals.add('HRMS');
+      signals.add('HR software');
+    }
+
+    return Array.from(signals);
+  }
+
   private mapRecordToLead(
     row: LeadWithRelationsRecord,
     breakdown?: QualificationResult,
     stageHistory?: LeadStageHistoryItem[]
   ): LeadDetailResponse {
+    const detectedSignals = this.extractLeadSignals(row);
+
     return {
       id: row.id,
       companyId: row.company_id,
@@ -195,6 +276,8 @@ export class LeadService {
       companyIndustry: row.company_industry,
       companyLocation: row.company_location,
       companyProductFit: row.company_product_fit,
+      companyCurrentTools: row.company_current_tools || null,
+      companyHiringSignals: row.company_hiring_signals || null,
       contactId: row.contact_id,
       contactName: row.contact_name,
       contactTitle: row.contact_title,
@@ -232,6 +315,9 @@ export class LeadService {
       updatedAt: row.updated_at,
       qualificationBreakdown: breakdown,
       stageHistory,
+      followUpStatus: row.computed_follow_up_status || undefined,
+      followUpDueDate: row.next_follow_up_due_date || null,
+      detectedSignals,
     };
   }
 
@@ -324,6 +410,31 @@ export class LeadService {
           }
         : null
     );
+  }
+
+  /**
+   * Check for duplicate active leads by company, product, and optional contact.
+   */
+  public checkDuplicate(
+    companyId: string,
+    product: string,
+    contactId?: string
+  ): { isDuplicate: boolean; existingLead?: LeadRecord } {
+    let query = `
+      SELECT * FROM leads
+      WHERE company_id = ? AND product = ? AND status NOT IN ('Won', 'Lost', 'Archived')
+    `;
+    const params: (string | null)[] = [companyId, product];
+    if (contactId) {
+      query += ' AND contact_id = ?';
+      params.push(contactId);
+    }
+    query += ' LIMIT 1';
+    const existing = this.db.prepare(query).get(...params) as unknown as LeadRecord | undefined;
+    return {
+      isDuplicate: Boolean(existing),
+      existingLead: existing,
+    };
   }
 
   /**
@@ -564,11 +675,11 @@ export class LeadService {
   }
 
   /**
-   * List / filter / search / paginate leads.
+   * List / filter / search / paginate leads with Phase 9 Advanced Lead Discovery.
    */
   public list(options: LeadFilterOptions = {}): PaginatedLeadsResult {
-    const page = Math.max(1, options.page || 1);
-    const limit = Math.min(100, Math.max(1, options.limit || 10));
+    const page = Math.max(1, typeof options.page === 'number' && !isNaN(options.page) ? options.page : 1);
+    const limit = Math.min(100, Math.max(1, typeof options.limit === 'number' && !isNaN(options.limit) ? options.limit : 10));
     const offset = (page - 1) * limit;
 
     const conditions: string[] = [];
@@ -617,23 +728,177 @@ export class LeadService {
       params.push(options.source);
     }
 
-    if (typeof options.minScore === 'number') {
+    if (typeof options.minScore === 'number' && !isNaN(options.minScore)) {
       conditions.push('l.qualification_score >= ?');
       params.push(options.minScore);
     }
 
+    // Company filters on Lead
+    if (options.industry) {
+      conditions.push('(co.industry = ? OR LOWER(co.industry) LIKE ?)');
+      params.push(options.industry, `%${options.industry.toLowerCase()}%`);
+    }
+
+    if (options.location) {
+      conditions.push('LOWER(co.location) LIKE ?');
+      params.push(`%${options.location.toLowerCase()}%`);
+    }
+
+    if (options.employeeSize) {
+      conditions.push('(co.employee_size = ? OR l.company_size = ?)');
+      params.push(options.employeeSize, options.employeeSize);
+    }
+
+    if (options.hiringVolume) {
+      conditions.push('l.hiring_volume = ?');
+      params.push(options.hiringVolume);
+    }
+
+    if (options.productFit) {
+      conditions.push('co.product_fit = ?');
+      params.push(options.productFit);
+    }
+
+    // Contact filters on Lead
+    if (options.jobTitle) {
+      conditions.push('LOWER(cnt.title) LIKE ?');
+      params.push(`%${options.jobTitle.toLowerCase()}%`);
+    }
+
+    if (options.decisionMaker !== undefined) {
+      const isDm = options.decisionMaker === true || options.decisionMaker === 'true' || options.decisionMaker === '1' || options.decisionMaker === 1;
+      conditions.push('cnt.decision_maker = ?');
+      params.push(isDm ? 1 : 0);
+    }
+
+    if (options.company) {
+      conditions.push('(LOWER(co.name) LIKE ? OR co.id = ?)');
+      params.push(`%${options.company.toLowerCase()}%`, options.company);
+    }
+
+    if (options.productRelevance) {
+      conditions.push('(co.product_fit = ? OR l.product = ?)');
+      params.push(options.productRelevance, options.productRelevance);
+    }
+
+    // Existing tool filters (supports comma-separated tools and 'No known tool')
+    const toolFilter = options.existingTools || options.existingTool;
+    if (toolFilter && toolFilter.trim()) {
+      const tools = toolFilter.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tools.length > 0) {
+        const toolClauses: string[] = [];
+        for (const t of tools) {
+          if (t.toLowerCase() === 'no known tool' || t.toLowerCase() === 'none') {
+            toolClauses.push(`
+              ((l.existing_tools IS NULL OR TRIM(l.existing_tools) = '' OR LOWER(l.existing_tools) LIKE '%none%' OR LOWER(l.existing_tools) LIKE '%no known%')
+              AND (co.current_tools IS NULL OR TRIM(co.current_tools) = '' OR LOWER(co.current_tools) LIKE '%none%' OR LOWER(co.current_tools) LIKE '%no known%'))
+            `);
+          } else {
+            toolClauses.push('(LOWER(l.existing_tools) LIKE ? OR LOWER(co.current_tools) LIKE ?)');
+            const term = `%${t.toLowerCase()}%`;
+            params.push(term, term);
+          }
+        }
+        if (toolClauses.length > 0) {
+          conditions.push(`(${toolClauses.join(' OR ')})`);
+        }
+      }
+    }
+
+    // Lead signals filters (HireIQ & HRMS signals, comma-separated)
+    const signalFilter = options.leadSignals || options.hiringSignals || options.signals;
+    if (signalFilter && signalFilter.trim()) {
+      const sigs = signalFilter.split(',').map((s) => s.trim()).filter(Boolean);
+      if (sigs.length > 0) {
+        const sigClauses: string[] = [];
+        for (const s of sigs) {
+          const lower = s.toLowerCase();
+          if (lower === 'bulk hiring') {
+            sigClauses.push(`(l.hiring_volume = 'High' OR l.hiring_multiple_roles = 1 OR LOWER(co.hiring_signals) LIKE '%bulk%' OR LOWER(co.hiring_signals) LIKE '%high%volume%' OR LOWER(l.notes) LIKE '%bulk%' OR LOWER(l.qualification_notes) LIKE '%bulk%')`);
+          } else if (lower === 'high-volume hiring' || lower === 'high volume hiring') {
+            sigClauses.push(`(l.hiring_volume = 'High' OR LOWER(co.hiring_signals) LIKE '%high%volume%' OR LOWER(co.hiring_signals) LIKE '%volume%' OR LOWER(l.notes) LIKE '%high-volume%')`);
+          } else if (lower === 'multiple open roles' || lower === 'multiple roles') {
+            sigClauses.push(`(l.hiring_multiple_roles = 1 OR LOWER(co.hiring_signals) LIKE '%multiple%roles%' OR LOWER(co.hiring_signals) LIKE '%open roles%' OR LOWER(l.notes) LIKE '%multiple%roles%')`);
+          } else if (lower === 'resume screening' || lower === 'screening') {
+            sigClauses.push(`(LOWER(l.qualification_notes) LIKE '%screen%' OR LOWER(l.notes) LIKE '%screen%' OR LOWER(co.hiring_signals) LIKE '%screen%' OR l.ats_score IS NOT NULL)`);
+          } else if (lower === 'shortlisting' || lower === 'shortlist') {
+            sigClauses.push(`(LOWER(l.qualification_notes) LIKE '%shortlist%' OR LOWER(l.notes) LIKE '%shortlist%' OR LOWER(co.hiring_signals) LIKE '%shortlist%')`);
+          } else if (lower === 'ats') {
+            sigClauses.push(`(LOWER(l.existing_tools) LIKE '%ats%' OR LOWER(co.current_tools) LIKE '%ats%' OR l.source = 'Free ATS Score Check' OR LOWER(l.title) LIKE '%ats%' OR LOWER(co.current_tools) LIKE '%greenhouse%' OR LOWER(co.current_tools) LIKE '%workable%' OR LOWER(co.current_tools) LIKE '%lever%' OR LOWER(co.current_tools) LIKE '%naukri%')`);
+          } else if (lower === 'recruitment agency') {
+            sigClauses.push(`(LOWER(co.industry) LIKE '%staffing%' OR LOWER(co.industry) LIKE '%recruit%' OR LOWER(co.name) LIKE '%agency%' OR LOWER(l.notes) LIKE '%agency%')`);
+          } else if (lower === 'staffing') {
+            sigClauses.push(`(LOWER(co.industry) LIKE '%staffing%' OR LOWER(co.name) LIKE '%staffing%' OR LOWER(l.notes) LIKE '%staffing%')`);
+          } else if (lower === 'rpo') {
+            sigClauses.push(`(LOWER(co.hiring_signals) LIKE '%rpo%' OR LOWER(l.notes) LIKE '%rpo%' OR LOWER(co.notes) LIKE '%rpo%')`);
+          } else if (lower === 'manual attendance') {
+            sigClauses.push(`(l.manual_hr_processes = 1 OR LOWER(l.notes) LIKE '%manual attendance%' OR LOWER(l.notes) LIKE '%attendance%')`);
+          } else if (lower === 'excel hr processes' || lower === 'excel hr') {
+            sigClauses.push(`(l.manual_hr_processes = 1 OR LOWER(l.existing_tools) LIKE '%excel%' OR LOWER(co.current_tools) LIKE '%excel%' OR LOWER(l.notes) LIKE '%excel%')`);
+          } else if (lower === 'payroll') {
+            sigClauses.push(`(LOWER(l.title) LIKE '%payroll%' OR LOWER(l.notes) LIKE '%payroll%' OR LOWER(l.qualification_notes) LIKE '%payroll%' OR LOWER(co.notes) LIKE '%payroll%' OR LOWER(co.current_tools) LIKE '%greythr%' OR LOWER(co.current_tools) LIKE '%keka%' OR LOWER(co.current_tools) LIKE '%darwinbox%')`);
+          } else if (lower === 'leave management' || lower === 'leave') {
+            sigClauses.push(`(l.manual_hr_processes = 1 OR LOWER(l.notes) LIKE '%leave%' OR LOWER(co.notes) LIKE '%leave%')`);
+          } else if (lower === 'employee records' || lower === 'records') {
+            sigClauses.push(`(l.manual_hr_processes = 1 OR LOWER(l.notes) LIKE '%employee record%' OR LOWER(l.notes) LIKE '%records%')`);
+          } else if (lower === 'hrms') {
+            sigClauses.push(`(l.product IN ('HRMS Portal', 'Both') OR LOWER(co.current_tools) LIKE '%hrms%' OR LOWER(l.notes) LIKE '%hrms%' OR LOWER(co.current_tools) LIKE '%darwinbox%' OR LOWER(co.current_tools) LIKE '%zoho people%' OR LOWER(co.current_tools) LIKE '%keka%')`);
+          } else if (lower === 'hr software') {
+            sigClauses.push(`(l.product IN ('HRMS Portal', 'Both') OR LOWER(co.current_tools) LIKE '%hr%' OR LOWER(l.notes) LIKE '%hr software%')`);
+          } else {
+            sigClauses.push('(LOWER(co.hiring_signals) LIKE ? OR LOWER(l.notes) LIKE ? OR LOWER(l.qualification_notes) LIKE ?)');
+            const term = `%${lower}%`;
+            params.push(term, term, term);
+          }
+        }
+        if (sigClauses.length > 0) {
+          conditions.push(`(${sigClauses.join(' OR ')})`);
+        }
+      }
+    }
+
+    // Follow-up status filter
+    if (options.followUpStatus && options.followUpStatus.trim()) {
+      const fus = options.followUpStatus.trim().toLowerCase();
+      if (fus === 'overdue') {
+        conditions.push(`EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id AND fu.status = 'Pending' AND date(fu.due_date) < date('now'))`);
+      } else if (fus === 'today') {
+        conditions.push(`EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id AND fu.status = 'Pending' AND date(fu.due_date) = date('now'))`);
+      } else if (fus === 'upcoming') {
+        conditions.push(`EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id AND fu.status = 'Pending' AND date(fu.due_date) > date('now'))`);
+      } else if (fus === 'pending') {
+        conditions.push(`EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id AND fu.status = 'Pending')`);
+      } else if (fus === 'completed') {
+        conditions.push(`EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id AND fu.status = 'Completed')`);
+      } else if (fus === 'none') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM follow_ups fu WHERE fu.lead_id = l.id)`);
+      }
+    }
+
+    // Keyword search across relevant fields
     if (options.search && options.search.trim()) {
-      const term = `%${options.search.trim()}%`;
-      conditions.push(`
-        (l.title LIKE ? OR co.name LIKE ? OR cnt.name LIKE ? OR l.notes LIKE ? OR l.existing_tools LIKE ?)
-      `);
-      params.push(term, term, term, term, term);
+      const term = `%${options.search.trim().toLowerCase()}%`;
+      conditions.push(`(
+        LOWER(l.title) LIKE ? OR
+        LOWER(co.name) LIKE ? OR
+        LOWER(cnt.name) LIKE ? OR
+        LOWER(cnt.title) LIKE ? OR
+        LOWER(cnt.email) LIKE ? OR
+        LOWER(co.industry) LIKE ? OR
+        LOWER(co.location) LIKE ? OR
+        LOWER(l.notes) LIKE ? OR
+        LOWER(l.qualification_notes) LIKE ? OR
+        LOWER(l.existing_tools) LIKE ? OR
+        LOWER(co.current_tools) LIKE ? OR
+        LOWER(co.hiring_signals) LIKE ?
+      )`);
+      params.push(term, term, term, term, term, term, term, term, term, term, term, term);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countSql = `
-      SELECT COUNT(*) AS total
+      SELECT COUNT(DISTINCT l.id) AS total
       FROM leads l
       JOIN companies co ON l.company_id = co.id
       LEFT JOIN contacts cnt ON l.contact_id = cnt.id
@@ -651,6 +916,8 @@ export class LeadService {
       company: 'co.name',
       createdAt: 'l.created_at',
       updatedAt: 'l.updated_at',
+      stageChangedAt: 'l.stage_changed_at',
+      hiringVolume: 'CASE l.hiring_volume WHEN "High" THEN 4 WHEN "Medium" THEN 3 WHEN "Low" THEN 2 ELSE 1 END',
     };
 
     const sortBy = options.sortBy && allowedSortFields[options.sortBy]
@@ -670,10 +937,31 @@ export class LeadService {
         l.created_at, l.updated_at,
         co.name AS company_name, co.website AS company_website, co.normalized_domain AS company_domain,
         co.industry AS company_industry, co.location AS company_location, co.employee_size AS company_employee_size,
-        co.product_fit AS company_product_fit,
+        co.product_fit AS company_product_fit, co.current_tools AS company_current_tools, co.hiring_signals AS company_hiring_signals,
         cnt.name AS contact_name, cnt.title AS contact_title, cnt.email AS contact_email,
         cnt.phone AS contact_phone, cnt.decision_maker AS contact_decision_maker,
-        cmp.name AS campaign_name
+        cmp.name AS campaign_name,
+        (
+          SELECT 
+            CASE 
+              WHEN COUNT(fu.id) = 0 THEN 'None'
+              WHEN SUM(CASE WHEN fu.status = 'Pending' AND date(fu.due_date) < date('now') THEN 1 ELSE 0 END) > 0 THEN 'Overdue'
+              WHEN SUM(CASE WHEN fu.status = 'Pending' AND date(fu.due_date) = date('now') THEN 1 ELSE 0 END) > 0 THEN 'Today'
+              WHEN SUM(CASE WHEN fu.status = 'Pending' AND date(fu.due_date) > date('now') THEN 1 ELSE 0 END) > 0 THEN 'Upcoming'
+              WHEN SUM(CASE WHEN fu.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
+              WHEN SUM(CASE WHEN fu.status = 'Completed' THEN 1 ELSE 0 END) > 0 THEN 'Completed'
+              ELSE 'None'
+            END
+          FROM follow_ups fu
+          WHERE fu.lead_id = l.id
+        ) AS computed_follow_up_status,
+        (
+          SELECT fu.due_date
+          FROM follow_ups fu
+          WHERE fu.lead_id = l.id
+          ORDER BY CASE WHEN fu.status = 'Pending' THEN 0 ELSE 1 END, fu.due_date ASC
+          LIMIT 1
+        ) AS next_follow_up_due_date
       FROM leads l
       JOIN companies co ON l.company_id = co.id
       LEFT JOIN contacts cnt ON l.contact_id = cnt.id

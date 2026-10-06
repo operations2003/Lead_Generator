@@ -122,6 +122,11 @@ export interface Lead {
   updatedAt: string;
   qualificationBreakdown?: QualificationPreviewResult;
   stageHistory?: LeadStageHistoryItem[];
+  followUpStatus?: string;
+  followUpDueDate?: string | null;
+  detectedSignals?: string[];
+  companyCurrentTools?: string | null;
+  companyHiringSignals?: string | null;
 }
 
 export interface CreateLeadPayload {
@@ -184,6 +189,7 @@ export interface LeadFilterParams {
   priority?: string;
   status?: string;
   campaignId?: string;
+  campaign?: string;
   source?: string;
   companyId?: string;
   contactId?: string;
@@ -193,6 +199,21 @@ export interface LeadFilterParams {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  existingTools?: string;
+  existingTool?: string;
+  signals?: string;
+  hiringSignals?: string;
+  leadSignals?: string;
+  hiringVolume?: string;
+  followUpStatus?: string;
+  industry?: string;
+  location?: string;
+  employeeSize?: string;
+  productFit?: string;
+  jobTitle?: string;
+  decisionMaker?: boolean | string;
+  company?: string;
+  productRelevance?: string;
 }
 
 export interface DuplicateLeadCheckResult {

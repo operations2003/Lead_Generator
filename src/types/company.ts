@@ -98,5 +98,10 @@ export interface CompanyFilterParams {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  hiringVolume?: string;
+  hiringSignals?: string;
+  signals?: string;
+  existingTools?: string;
+  currentTools?: string;
 }
 

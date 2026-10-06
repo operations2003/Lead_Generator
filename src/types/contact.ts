@@ -55,10 +55,14 @@ export interface UpdateContactPayload {
 export interface ContactFilterParams {
   search?: string;
   role?: string;
+  jobTitle?: string;
+  title?: string;
   companyId?: string;
+  company?: string;
   decisionMaker?: boolean | string;
   status?: string;
   includeArchived?: boolean;
+  productRelevance?: string;
   page?: number;
   limit?: number;
   sortBy?: string;

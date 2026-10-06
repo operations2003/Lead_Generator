@@ -73,7 +73,7 @@ export class ReportingService {
     const period = options.period || 'all';
 
     let startDate = options.startDate;
-    let endDate = options.endDate || today.toISOString().split('T')[0];
+    const endDate = options.endDate || today.toISOString().split('T')[0];
 
     if (!startDate) {
       if (period === 'daily') {

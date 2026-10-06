@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   PageHeader,
   Table,
-  Filters,
   StatusBadge,
   Column,
   ErrorState,
+  EmptyState,
+  TableSkeleton,
 } from '../components/common';
 import {
   Building2,
@@ -19,10 +20,46 @@ import {
   Trash2,
   CheckCircle2,
   RotateCcw,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Wrench,
+  Filter,
 } from 'lucide-react';
 import { companyService } from '../api';
-import { Company, CompanyFilterParams, CreateCompanyPayload } from '../types';
+import {
+  Company,
+  CompanyFilterParams,
+  CreateCompanyPayload,
+  HIREIQ_LEAD_SIGNALS,
+  HRMS_LEAD_SIGNALS,
+  EXISTING_TOOLS,
+} from '../types';
 import { CompanyDetailModal, CompanyFormModal, ArchiveConfirmModal } from '../components/companies';
+
+const INDUSTRY_OPTIONS = [
+  'Cloud & Cybersecurity',
+  'Software & SaaS',
+  'Financial Services',
+  'Healthcare & Biotech',
+  'E-commerce & Retail',
+  'Manufacturing & Logistics',
+  'Staffing & HR',
+  'IT Services & Consulting',
+  'EdTech & Education',
+];
+
+const EMPLOYEE_SIZES = [
+  { label: '1 - 10 staff', value: '1-10' },
+  { label: '11 - 50 staff', value: '11-50' },
+  { label: '51 - 200 staff', value: '51-200' },
+  { label: '201 - 500 staff', value: '201-500' },
+  { label: '501 - 1000 staff', value: '501-1000' },
+  { label: '1000+ staff', value: '1000+' },
+];
+
+const HIRING_VOLUMES = ['High', 'Medium', 'Low', 'None'];
 
 export const CompaniesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -31,11 +68,19 @@ export const CompaniesPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+
+  // Filters
   const [search, setSearch] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [productFitFilter, setProductFitFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [employeeSizeFilter, setEmployeeSizeFilter] = useState('');
+  const [hiringVolumeFilter, setHiringVolumeFilter] = useState('');
+  const [productFitFilter, setProductFitFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [selectedSignals, setSelectedSignals] = useState<string[]>([]);
+  const [showAdvancedDiscovery, setShowAdvancedDiscovery] = useState(false);
+
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -54,9 +99,13 @@ export const CompaniesPage: React.FC = () => {
         limit,
         search: search.trim() || undefined,
         industry: industryFilter || undefined,
+        location: locationFilter.trim() || undefined,
         status: statusFilter || undefined,
         productFit: productFitFilter || undefined,
         employeeSize: employeeSizeFilter || undefined,
+        hiringVolume: hiringVolumeFilter || undefined,
+        hiringSignals: selectedSignals.length > 0 ? selectedSignals.join(',') : undefined,
+        existingTools: selectedTools.length > 0 ? selectedTools.join(',') : undefined,
         sortBy,
         sortOrder,
       };
@@ -72,7 +121,21 @@ export const CompaniesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, industryFilter, statusFilter, productFitFilter, employeeSizeFilter, sortBy, sortOrder]);
+  }, [
+    page,
+    limit,
+    search,
+    industryFilter,
+    locationFilter,
+    statusFilter,
+    productFitFilter,
+    employeeSizeFilter,
+    hiringVolumeFilter,
+    selectedSignals,
+    selectedTools,
+    sortBy,
+    sortOrder,
+  ]);
 
   useEffect(() => {
     loadCompanies();
@@ -114,14 +177,56 @@ export const CompaniesPage: React.FC = () => {
     loadCompanies();
   };
 
+  const toggleTool = (tool: string) => {
+    setSelectedTools((prev) =>
+      prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool]
+    );
+    setPage(1);
+  };
+
+  const toggleSignal = (signal: string) => {
+    setSelectedSignals((prev) =>
+      prev.includes(signal) ? prev.filter((s) => s !== signal) : [...prev, signal]
+    );
+    setPage(1);
+  };
+
   const resetFilters = () => {
     setSearch('');
     setIndustryFilter('');
+    setLocationFilter('');
     setStatusFilter('');
     setProductFitFilter('');
     setEmployeeSizeFilter('');
+    setHiringVolumeFilter('');
+    setSelectedTools([]);
+    setSelectedSignals([]);
     setPage(1);
   };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count++;
+    if (industryFilter) count++;
+    if (locationFilter.trim()) count++;
+    if (statusFilter) count++;
+    if (productFitFilter) count++;
+    if (employeeSizeFilter) count++;
+    if (hiringVolumeFilter) count++;
+    count += selectedTools.length;
+    count += selectedSignals.length;
+    return count;
+  }, [
+    search,
+    industryFilter,
+    locationFilter,
+    statusFilter,
+    productFitFilter,
+    employeeSizeFilter,
+    hiringVolumeFilter,
+    selectedTools,
+    selectedSignals,
+  ]);
 
   const getProductFitBadge = (fit: string) => {
     switch (fit) {
@@ -328,14 +433,14 @@ export const CompaniesPage: React.FC = () => {
     <div>
       <PageHeader
         title="Company Intelligence & IT Mapping"
-        description="Identify target enterprise accounts, analyze hiring signals, and inspect IT infrastructure tools."
+        description="Filter target accounts by industry, location, headcount, hiring signals, and detected HR tools."
         breadcrumbs={[{ label: 'Home' }, { label: 'Companies', active: true }]}
         actions={
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            {(search || industryFilter || statusFilter || productFitFilter || employeeSizeFilter) && (
+            {activeFiltersCount > 0 && (
               <button className="btn btn-secondary" onClick={resetFilters}>
                 <RotateCcw size={15} />
-                <span>Reset Filters</span>
+                <span>Reset Filters ({activeFiltersCount})</span>
               </button>
             )}
             <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
@@ -346,89 +451,275 @@ export const CompaniesPage: React.FC = () => {
         }
       />
 
-      {/* Search and Filters */}
-      <Filters
-        searchPlaceholder="Search company name, domain, detected tools, signals..."
-        searchValue={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
+      {/* FILTER PANEL */}
+      <div
+        className="card"
+        style={{
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          borderRadius: '12px',
+          border: '1px solid var(--border-color)',
         }}
-        filterOptions={[
-          {
-            key: 'industry',
-            label: 'All Industries',
-            value: industryFilter,
-            options: [
-              { label: 'Cloud & Cybersecurity', value: 'Cloud & Cybersecurity' },
-              { label: 'Software & SaaS', value: 'Software & SaaS' },
-              { label: 'Financial Services', value: 'Financial Services' },
-              { label: 'Healthcare & Biotech', value: 'Healthcare & Biotech' },
-              { label: 'E-commerce & Retail', value: 'E-commerce & Retail' },
-              { label: 'Manufacturing & Logistics', value: 'Manufacturing & Logistics' },
-            ],
-            onChange: (val) => {
-              setIndustryFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'status',
-            label: 'All Stages',
-            value: statusFilter,
-            options: [
-              { label: 'Prospect', value: 'Prospect' },
-              { label: 'Researching', value: 'Researching' },
-              { label: 'Contacted', value: 'Contacted' },
-              { label: 'Qualified', value: 'Qualified' },
-              { label: 'Customer', value: 'Customer' },
-              { label: 'Archived', value: 'Archived' },
-            ],
-            onChange: (val) => {
-              setStatusFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'productFit',
-            label: 'All Product Fits',
-            value: productFitFilter,
-            options: [
-              { label: 'High Fit', value: 'High' },
-              { label: 'Medium Fit', value: 'Medium' },
-              { label: 'Low Fit', value: 'Low' },
-            ],
-            onChange: (val) => {
-              setProductFitFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'employeeSize',
-            label: 'All Headcounts',
-            value: employeeSizeFilter,
-            options: [
-              { label: '1 - 10 staff', value: '1-10' },
-              { label: '11 - 50 staff', value: '11-50' },
-              { label: '51 - 200 staff', value: '51-200' },
-              { label: '201 - 500 staff', value: '201-500' },
-              { label: '501 - 1000 staff', value: '501-1000' },
-              { label: '1000 - 5000 staff', value: '1000-5000' },
-            ],
-            onChange: (val) => {
-              setEmployeeSizeFilter(val);
-              setPage(1);
-            },
-          },
-        ]}
-      />
+      >
+        {/* Primary Filter Bar */}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Keyword Search */}
+          <div style={{ flex: '1 1 240px', minWidth: '220px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Search size={16} style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="input"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search company name, domain, detected tools..."
+              style={{ width: '100%' }}
+            />
+          </div>
 
-      {/* Main Content: ErrorState or Table */}
+          {/* Industry Filter */}
+          <select
+            className="input"
+            value={industryFilter}
+            onChange={(e) => {
+              setIndustryFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '150px' }}
+          >
+            <option value="">All Industries</option>
+            {INDUSTRY_OPTIONS.map((ind) => (
+              <option key={ind} value={ind}>
+                {ind}
+              </option>
+            ))}
+          </select>
+
+          {/* Location Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '150px' }}>
+            <MapPin size={15} style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="input"
+              value={locationFilter}
+              onChange={(e) => {
+                setLocationFilter(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Location..."
+              style={{ width: '130px' }}
+            />
+          </div>
+
+          {/* Employee Size Filter */}
+          <select
+            className="input"
+            value={employeeSizeFilter}
+            onChange={(e) => {
+              setEmployeeSizeFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '130px' }}
+          >
+            <option value="">All Headcounts</option>
+            {EMPLOYEE_SIZES.map((sz) => (
+              <option key={sz.value} value={sz.value}>
+                {sz.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Product Fit */}
+          <select
+            className="input"
+            value={productFitFilter}
+            onChange={(e) => {
+              setProductFitFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '120px' }}
+          >
+            <option value="">All Fits</option>
+            <option value="High">High Fit</option>
+            <option value="Medium">Medium Fit</option>
+            <option value="Low">Low Fit</option>
+          </select>
+
+          {/* Hiring Volume */}
+          <select
+            className="input"
+            value={hiringVolumeFilter}
+            onChange={(e) => {
+              setHiringVolumeFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '130px' }}
+          >
+            <option value="">All Hiring Volumes</option>
+            {HIRING_VOLUMES.map((v) => (
+              <option key={v} value={v}>
+                {v} Volume
+              </option>
+            ))}
+          </select>
+
+          {/* Advanced Signals & Tools Toggle */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowAdvancedDiscovery(!showAdvancedDiscovery)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Filter size={14} />
+            <span>Signals & Tools</span>
+            {(selectedTools.length > 0 || selectedSignals.length > 0) && (
+              <span
+                style={{
+                  backgroundColor: 'var(--primary-color, #3b82f6)',
+                  color: '#fff',
+                  borderRadius: '10px',
+                  padding: '1px 6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                }}
+              >
+                {selectedTools.length + selectedSignals.length}
+              </span>
+            )}
+            {showAdvancedDiscovery ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+
+        {/* Collapsible Signals & Existing Tools Section */}
+        {showAdvancedDiscovery && (
+          <div
+            style={{
+              marginTop: '1rem',
+              paddingTop: '1rem',
+              borderTop: '1px dashed var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+            }}
+          >
+            {/* Existing HR / Recruitment Tools Filter */}
+            <div>
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginBottom: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Wrench size={13} />
+                <span>Filter by Existing HR & Recruitment Tools</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {EXISTING_TOOLS.map((tool) => {
+                  const isSelected = selectedTools.includes(tool);
+                  return (
+                    <button
+                      key={tool}
+                      type="button"
+                      onClick={() => toggleTool(tool)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: isSelected
+                          ? '1px solid #3b82f6'
+                          : '1px solid var(--border-color)',
+                        backgroundColor: isSelected
+                          ? 'rgba(59, 130, 246, 0.15)'
+                          : 'var(--bg-card)',
+                        color: isSelected ? '#3b82f6' : 'var(--text-secondary)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {tool}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hiring Signals: HireIQ & HRMS Signals */}
+            <div>
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginBottom: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Sparkles size={13} />
+                <span>Filter by HireIQ & HRMS Hiring Signals</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {[...HIREIQ_LEAD_SIGNALS, ...HRMS_LEAD_SIGNALS].map((signal) => {
+                  const isSelected = selectedSignals.includes(signal);
+                  return (
+                    <button
+                      key={signal}
+                      type="button"
+                      onClick={() => toggleSignal(signal)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: isSelected
+                          ? '1px solid #8b5cf6'
+                          : '1px solid var(--border-color)',
+                        backgroundColor: isSelected
+                          ? 'rgba(139, 92, 246, 0.15)'
+                          : 'var(--bg-card)',
+                        color: isSelected ? '#a78bfa' : 'var(--text-secondary)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {signal}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Main Content: ErrorState, TableSkeleton, EmptyState, or Table */}
       {error ? (
         <ErrorState
           title="Failed to Load Companies"
           message={error}
           onRetry={loadCompanies}
+        />
+      ) : loading && companies.length === 0 ? (
+        <TableSkeleton rows={6} cols={8} />
+      ) : companies.length === 0 ? (
+        <EmptyState
+          title="No Target Companies Found"
+          description="No enterprise accounts matched your active filters. Try adjusting your search criteria or clearing filters."
+          action={{
+            label: 'Reset Filters',
+            onClick: resetFilters,
+          }}
         />
       ) : (
         <Table
@@ -438,11 +729,7 @@ export const CompaniesPage: React.FC = () => {
           keyExtractor={(row) => row.id}
           onSort={handleSort}
           emptyTitle="No mapped companies found"
-          emptyDescription={
-            search || industryFilter || statusFilter || productFitFilter || employeeSizeFilter
-              ? 'No target companies match your active filters. Try adjusting or clearing search filters.'
-              : 'Start your IT mapping journey by adding your first target enterprise company.'
-          }
+          emptyDescription="Start your IT mapping journey by adding your first target enterprise company."
           pagination={{
             page,
             limit,

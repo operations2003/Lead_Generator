@@ -6,6 +6,8 @@ import {
   ChevronRight,
   AlertTriangle,
   Loader2,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 
 export interface LeadKanbanBoardProps {
@@ -277,6 +279,74 @@ export const LeadKanbanBoard: React.FC<LeadKanbanBoardProps> = ({
                           <AlertTriangle size={11} /> No contact attached
                         </div>
                       )}
+
+                      {/* Signals & Follow-up Badges */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
+                        {lead.followUpStatus && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span
+                              style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                backgroundColor:
+                                  lead.followUpStatus === 'Overdue'
+                                    ? 'rgba(239, 68, 68, 0.15)'
+                                    : lead.followUpStatus === 'Due Today'
+                                    ? 'rgba(245, 158, 11, 0.15)'
+                                    : lead.followUpStatus === 'Scheduled'
+                                    ? 'rgba(59, 130, 246, 0.15)'
+                                    : 'rgba(100, 116, 139, 0.15)',
+                                color:
+                                  lead.followUpStatus === 'Overdue'
+                                    ? '#ef4444'
+                                    : lead.followUpStatus === 'Due Today'
+                                    ? '#f59e0b'
+                                    : lead.followUpStatus === 'Scheduled'
+                                    ? '#3b82f6'
+                                    : 'var(--text-muted)',
+                              }}
+                            >
+                              <Clock size={10} />
+                              {lead.followUpStatus}
+                            </span>
+                          </div>
+                        )}
+
+                        {lead.detectedSignals && lead.detectedSignals.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                            {lead.detectedSignals.slice(0, 2).map((sig, sIdx) => (
+                              <span
+                                key={sIdx}
+                                style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  padding: '1px 5px',
+                                  borderRadius: '3px',
+                                  backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                                  color: '#a78bfa',
+                                  border: '1px solid rgba(139, 92, 246, 0.25)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                }}
+                              >
+                                <Sparkles size={8} />
+                                {sig}
+                              </span>
+                            ))}
+                            {lead.detectedSignals.length > 2 && (
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                +{lead.detectedSignals.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Bottom Footer: Value & Score */}
                       <div

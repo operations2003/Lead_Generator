@@ -2,10 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import { getDb } from '../db/database';
 import {
-  ActivityRecord,
   ActivityWithRelationsRecord,
   ActivityType,
-  FollowUpRecord,
   FollowUpWithRelationsRecord,
   FollowUpStatusType,
   FollowUpComputedStatus,

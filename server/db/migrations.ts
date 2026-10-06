@@ -684,6 +684,71 @@ export const migrations: Migration[] = [
       }
     },
   },
+  {
+    id: '008_phase9_search_optimization_and_data_quality',
+    name: 'Add optimized indexes for search, filtering, reporting, and data quality integrity',
+    up: (db: DatabaseSync) => {
+      // 1. Company Search & Filter Indexes
+      // Company name, Industry, Location, Employee size, Hiring signals, Existing tools, Product fit
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
+        CREATE INDEX IF NOT EXISTS idx_companies_normalized_name ON companies(normalized_name);
+        CREATE INDEX IF NOT EXISTS idx_companies_industry ON companies(industry);
+        CREATE INDEX IF NOT EXISTS idx_companies_location ON companies(location);
+        CREATE INDEX IF NOT EXISTS idx_companies_employee_size ON companies(employee_size);
+        CREATE INDEX IF NOT EXISTS idx_companies_current_tools ON companies(current_tools);
+        CREATE INDEX IF NOT EXISTS idx_companies_hiring_signals ON companies(hiring_signals);
+        CREATE INDEX IF NOT EXISTS idx_companies_product_fit ON companies(product_fit);
+        CREATE INDEX IF NOT EXISTS idx_companies_created_at ON companies(created_at);
+        CREATE INDEX IF NOT EXISTS idx_companies_search_opt ON companies(status, industry, product_fit, employee_size);
+      `);
+
+      // 2. Contact Search & Filter Indexes
+      // Contact name, Email, Job title, Decision-maker, Company
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
+        CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
+        CREATE INDEX IF NOT EXISTS idx_contacts_title ON contacts(title);
+        CREATE INDEX IF NOT EXISTS idx_contacts_decision_maker ON contacts(decision_maker);
+        CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
+        CREATE INDEX IF NOT EXISTS idx_contacts_created_at ON contacts(created_at);
+        CREATE INDEX IF NOT EXISTS idx_contacts_search_opt ON contacts(status, decision_maker, company_id);
+      `);
+
+      // 3. Lead Search, Filter & Pipeline Indexes
+      // Product, Priority, Stage (status), Source, Campaign, Existing tool, Hiring signals, Follow-up date
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_leads_product ON leads(product);
+        CREATE INDEX IF NOT EXISTS idx_leads_priority ON leads(priority);
+        CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+        CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
+        CREATE INDEX IF NOT EXISTS idx_leads_campaign_id ON leads(campaign_id);
+        CREATE INDEX IF NOT EXISTS idx_leads_existing_tools ON leads(existing_tools);
+        CREATE INDEX IF NOT EXISTS idx_leads_hiring_volume ON leads(hiring_volume);
+        CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(qualification_score);
+        CREATE INDEX IF NOT EXISTS idx_leads_company_contact ON leads(company_id, contact_id);
+        CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
+        CREATE INDEX IF NOT EXISTS idx_leads_search_opt ON leads(status, priority, product, qualification_score);
+        CREATE INDEX IF NOT EXISTS idx_leads_signals_opt ON leads(hiring_volume, hiring_multiple_roles, manual_hr_processes);
+      `);
+
+      // 4. Follow-up and Activity Indexes
+      // Follow-up date, lead status, due date, activities date
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_due_date ON follow_ups(due_date);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_id ON follow_ups(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_status_due ON follow_ups(status, due_date);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_status_due ON follow_ups(lead_id, status, due_date);
+        CREATE INDEX IF NOT EXISTS idx_activities_activity_date ON activities(activity_date);
+        CREATE INDEX IF NOT EXISTS idx_lead_history_created_at ON lead_stage_history(created_at);
+      `);
+
+      // 5. Query planner analysis
+      db.exec(`
+        ANALYZE;
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): { applied: string[]; total: number } {

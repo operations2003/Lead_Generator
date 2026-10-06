@@ -36,10 +36,14 @@ export interface ContactFilterOptions {
   limit?: number;
   search?: string;
   role?: string;
+  jobTitle?: string;
+  title?: string;
   companyId?: string;
+  company?: string;
   decisionMaker?: boolean | string;
   status?: string;
   includeArchived?: boolean;
+  productRelevance?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -333,10 +337,29 @@ export class ContactService {
       params.push(options.companyId);
     }
 
+    if (options.company) {
+      conditions.push('(LOWER(co.name) LIKE ? OR co.id = ?)');
+      params.push(`%${options.company.toLowerCase()}%`, options.company);
+    }
+
     // Filter by role / title (e.g. "Recruitment", "HR", "CEO", "Finance", "IT")
     if (options.role) {
       conditions.push('(c.title LIKE ? OR c.department LIKE ?)');
       params.push(`%${options.role}%`, `%${options.role}%`);
+    }
+
+    const titleFilter = options.jobTitle || options.title;
+    if (titleFilter) {
+      conditions.push('LOWER(c.title) LIKE ?');
+      params.push(`%${titleFilter.toLowerCase()}%`);
+    }
+
+    if (options.productRelevance) {
+      conditions.push(`(
+        co.product_fit = ? OR
+        EXISTS (SELECT 1 FROM leads ld WHERE ld.contact_id = c.id AND ld.product = ?)
+      )`);
+      params.push(options.productRelevance, options.productRelevance);
     }
 
     // Filter by decision-maker status

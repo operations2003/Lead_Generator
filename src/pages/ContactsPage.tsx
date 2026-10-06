@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   PageHeader,
   Table,
-  Filters,
   Column,
   ErrorState,
+  EmptyState,
+  TableSkeleton,
 } from '../components/common';
 import {
   Users,
@@ -20,6 +21,7 @@ import {
   RotateCcw,
   Target,
   CheckCircle2,
+  Search,
 } from 'lucide-react';
 import { contactService, companyService } from '../api';
 import { Contact, ContactFilterParams, CreateContactPayload, Company } from '../types';
@@ -41,6 +43,13 @@ const DECISION_MAKER_OPTIONS = [
   { label: 'Influencers & Users', value: 'false' },
 ];
 
+const PRODUCT_RELEVANCE_OPTIONS = [
+  { label: 'All Product Relevance', value: '' },
+  { label: 'Higher IQ', value: 'Higher IQ' },
+  { label: 'HRMS Portal', value: 'HRMS Portal' },
+  { label: 'Both Suites', value: 'Both' },
+];
+
 const STATUS_OPTIONS = [
   { label: 'Active & In-Progress', value: '' },
   { label: 'Active Only', value: 'Active' },
@@ -57,11 +66,16 @@ export const ContactsPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+
+  // Filters
   const [search, setSearch] = useState('');
+  const [jobTitleFilter, setJobTitleFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [decisionMakerFilter, setDecisionMakerFilter] = useState('');
+  const [productRelevanceFilter, setProductRelevanceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
   const [sortBy, setSortBy] = useState('decisionMaker');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -99,9 +113,12 @@ export const ContactsPage: React.FC = () => {
         page,
         limit,
         search: search.trim() || undefined,
+        jobTitle: jobTitleFilter.trim() || undefined,
         role: roleFilter || undefined,
         companyId: companyFilter || undefined,
+        company: !companyFilter && search.trim() ? undefined : undefined,
         decisionMaker: decisionMakerFilter || undefined,
+        productRelevance: productRelevanceFilter || undefined,
         status: statusFilter || undefined,
         includeArchived: statusFilter === 'Archived',
         sortBy,
@@ -119,7 +136,19 @@ export const ContactsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, roleFilter, companyFilter, decisionMakerFilter, statusFilter, sortBy, sortOrder]);
+  }, [
+    page,
+    limit,
+    search,
+    jobTitleFilter,
+    roleFilter,
+    companyFilter,
+    decisionMakerFilter,
+    productRelevanceFilter,
+    statusFilter,
+    sortBy,
+    sortOrder,
+  ]);
 
   useEffect(() => {
     loadContacts();
@@ -184,9 +213,10 @@ export const ContactsPage: React.FC = () => {
       showToast(`Contact "${payload.name}" updated successfully.`);
     } else {
       await contactService.createContact(payload);
-      showToast(`Contact "${payload.name}" added to target database.`);
+      showToast(`Contact "${payload.name}" created successfully.`);
     }
     setContactToEdit(null);
+    setIsAddModalOpen(false);
     loadContacts();
   };
 
@@ -203,17 +233,56 @@ export const ContactsPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setSearch('');
+    setJobTitleFilter('');
     setRoleFilter('');
     setCompanyFilter('');
     setDecisionMakerFilter('');
+    setProductRelevanceFilter('');
     setStatusFilter('');
     setPage(1);
   };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count++;
+    if (jobTitleFilter.trim()) count++;
+    if (roleFilter) count++;
+    if (companyFilter) count++;
+    if (decisionMakerFilter) count++;
+    if (productRelevanceFilter) count++;
+    if (statusFilter) count++;
+    return count;
+  }, [
+    search,
+    jobTitleFilter,
+    roleFilter,
+    companyFilter,
+    decisionMakerFilter,
+    productRelevanceFilter,
+    statusFilter,
+  ]);
 
   // Metric computations for top cards
   const decisionMakersCount = contacts.filter((c) => c.decisionMaker).length;
   const uniqueCompaniesCount = new Set(contacts.map((c) => c.companyId)).size;
   const leadsCount = contacts.reduce((acc, c) => acc + (c.leads?.length || 0), 0);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Active':
+        return <span className="badge badge-success">Active</span>;
+      case 'Qualified':
+        return <span className="badge badge-primary">Qualified</span>;
+      case 'Contacted':
+        return <span className="badge badge-info">Contacted</span>;
+      case 'Unresponsive':
+        return <span className="badge badge-warning">Unresponsive</span>;
+      case 'Archived':
+        return <span className="badge badge-danger">Archived</span>;
+      default:
+        return <span className="badge badge-neutral">{status}</span>;
+    }
+  };
 
   const columns: Column<Contact>[] = [
     {
@@ -239,24 +308,30 @@ export const ContactsPage: React.FC = () => {
               flexShrink: 0,
             }}
           >
-            {row.name[0]?.toUpperCase() || 'C'}
+            {row.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span
-                style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)', cursor: 'pointer' }}
-                onClick={() => handleOpenDetail(row)}
-              >
-                {row.name}
-              </span>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: '14px',
+                color: 'var(--text-primary, #0f172a)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              onClick={() => handleOpenDetail(row)}
+            >
+              <span>{row.name}</span>
               {row.decisionMaker && (
-                <span title="Target Decision Maker">
-                  <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                <span title="Verified Decision Maker">
+                  <Star size={13} fill="#f59e0b" color="#f59e0b" />
                 </span>
               )}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)' }}>
-              {row.department || 'General'}
+              {row.department || 'Management'}
             </div>
           </div>
         </div>
@@ -264,7 +339,7 @@ export const ContactsPage: React.FC = () => {
     },
     {
       key: 'title',
-      header: 'Job Title / Target Role',
+      header: 'Job Title / Role',
       sortable: true,
       render: (row) => (
         <div>
@@ -461,23 +536,6 @@ export const ContactsPage: React.FC = () => {
     },
   ];
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return <span className="badge badge-success">Active</span>;
-      case 'Qualified':
-        return <span className="badge badge-primary">Qualified</span>;
-      case 'Contacted':
-        return <span className="badge badge-info">Contacted</span>;
-      case 'Unresponsive':
-        return <span className="badge badge-warning">Unresponsive</span>;
-      case 'Archived':
-        return <span className="badge badge-danger">Archived</span>;
-      default:
-        return <span className="badge badge-neutral">{status}</span>;
-    }
-  };
-
   return (
     <div className="page-container">
       {/* Toast Notification */}
@@ -509,9 +567,21 @@ export const ContactsPage: React.FC = () => {
       {/* Header */}
       <PageHeader
         title="Contacts & Decision Makers"
-        description="Manage verified IT decision makers, Recruitment heads, and Founders with end-to-end Company ➔ Contacts ➔ Lead relationship tracking."
+        description="Filter decision makers by job title, company, decision-making authority, and product relevance."
+        breadcrumbs={[{ label: 'Home' }, { label: 'Contacts', active: true }]}
         actions={
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleClearFilters}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RotateCcw size={15} />
+                <span>Reset Filters ({activeFiltersCount})</span>
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-secondary"
@@ -622,7 +692,7 @@ export const ContactsPage: React.FC = () => {
             style={{
               padding: '10px',
               borderRadius: '8px',
-              backgroundColor: 'rgba(99, 102, 241, 0.12)',
+              backgroundColor: 'rgba(99, 102, 246, 0.12)',
               color: '#4f46e5',
             }}
           >
@@ -671,64 +741,150 @@ export const ContactsPage: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <Filters
-        searchPlaceholder="Search by name, title, email, notes, company..."
-        searchValue={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
+      <div
+        className="card"
+        style={{
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          borderRadius: '12px',
+          border: '1px solid var(--border-color)',
         }}
-        filterOptions={[
-          {
-            key: 'role',
-            label: 'Filter by Role',
-            value: roleFilter,
-            options: TARGET_ROLE_OPTIONS.slice(1),
-            onChange: (val) => {
-              setRoleFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'company',
-            label: 'Filter by Company',
-            value: companyFilter,
-            options: companies.map((c) => ({ label: c.name, value: c.id })),
-            onChange: (val) => {
-              setCompanyFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'decisionMaker',
-            label: 'Decision Maker',
-            value: decisionMakerFilter,
-            options: DECISION_MAKER_OPTIONS.slice(1),
-            onChange: (val) => {
-              setDecisionMakerFilter(val);
-              setPage(1);
-            },
-          },
-          {
-            key: 'status',
-            label: 'Status',
-            value: statusFilter,
-            options: STATUS_OPTIONS.slice(1),
-            onChange: (val) => {
-              setStatusFilter(val);
-              setPage(1);
-            },
-          },
-        ]}
-        onClearAll={handleClearFilters}
-      />
+      >
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Keyword Search */}
+          <div style={{ flex: '1 1 220px', minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Search size={16} style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="input"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by name, email, phone, notes..."
+              style={{ width: '100%' }}
+            />
+          </div>
 
-      {/* Main Table */}
+          {/* Job Title / Role Filter */}
+          <input
+            type="text"
+            className="input"
+            value={jobTitleFilter}
+            onChange={(e) => {
+              setJobTitleFilter(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Job Title (e.g. VP HR)..."
+            style={{ width: '170px' }}
+          />
+
+          {/* Target Role Dropdown */}
+          <select
+            className="input"
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '150px' }}
+          >
+            {TARGET_ROLE_OPTIONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Company Filter */}
+          <select
+            className="input"
+            value={companyFilter}
+            onChange={(e) => {
+              setCompanyFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '160px' }}
+          >
+            <option value="">All Companies</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Decision Maker Filter */}
+          <select
+            className="input"
+            value={decisionMakerFilter}
+            onChange={(e) => {
+              setDecisionMakerFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '160px' }}
+          >
+            {DECISION_MAKER_OPTIONS.map((dm) => (
+              <option key={dm.value} value={dm.value}>
+                {dm.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Product Relevance Filter */}
+          <select
+            className="input"
+            value={productRelevanceFilter}
+            onChange={(e) => {
+              setProductRelevanceFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '170px' }}
+          >
+            {PRODUCT_RELEVANCE_OPTIONS.map((pr) => (
+              <option key={pr.value} value={pr.value}>
+                {pr.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Status Filter */}
+          <select
+            className="input"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ width: 'auto', minWidth: '130px' }}
+          >
+            {STATUS_OPTIONS.map((st) => (
+              <option key={st.value} value={st.value}>
+                {st.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Main Content: ErrorState, TableSkeleton, EmptyState, or Table */}
       {error ? (
         <ErrorState
           title="Error Loading Contacts"
           message={error}
           onRetry={loadContacts}
+        />
+      ) : loading && contacts.length === 0 ? (
+        <TableSkeleton rows={6} cols={7} />
+      ) : contacts.length === 0 ? (
+        <EmptyState
+          title="No Contacts Found"
+          description="No contacts matched your search, job title, decision-maker, or product relevance criteria."
+          action={{
+            label: 'Reset Filters',
+            onClick: handleClearFilters,
+          }}
         />
       ) : (
         <Table<Contact>

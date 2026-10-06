@@ -55,6 +55,10 @@ contactRouter.get('/', requirePermission('contacts:read'), (req: AuthenticatedRe
       includeArchived,
       sortBy,
       sortOrder,
+      jobTitle,
+      title,
+      company,
+      productRelevance,
     } = req.query;
 
     const result = contactService.list({
@@ -62,10 +66,13 @@ contactRouter.get('/', requirePermission('contacts:read'), (req: AuthenticatedRe
       limit: limit ? parseInt(String(limit), 10) : undefined,
       search: search ? String(search) : undefined,
       role: role ? String(role) : undefined,
+      jobTitle: jobTitle ? String(jobTitle) : (title ? String(title) : undefined),
       companyId: companyId ? String(companyId) : undefined,
+      company: company ? String(company) : undefined,
       decisionMaker: decisionMaker !== undefined ? String(decisionMaker) : undefined,
       status: status ? String(status) : undefined,
       includeArchived: includeArchived === 'true' || includeArchived === '1',
+      productRelevance: productRelevance ? String(productRelevance) : undefined,
       sortBy: sortBy ? String(sortBy) : undefined,
       sortOrder: sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : undefined,
     });

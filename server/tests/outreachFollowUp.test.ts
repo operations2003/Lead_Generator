@@ -8,7 +8,6 @@ import { initDb } from '../db/migrate';
 import {
   computeFollowUpStatus,
   CADENCE_STEPS,
-  VALID_ACTIVITY_TYPES,
 } from '../services/outreachService';
 
 const app = createApp();

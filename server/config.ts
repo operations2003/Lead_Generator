@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import path from 'node:path';
 
 export const config = {
@@ -8,4 +9,5 @@ export const config = {
   maxLoginAttempts: 5,
   lockoutDurationMinutes: 15,
   dbPath: process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'leads.db'),
+  databaseUrl: process.env.DATABASE_URL,
 };

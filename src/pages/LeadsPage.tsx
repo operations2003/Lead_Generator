@@ -3,13 +3,15 @@ import {
   PageHeader,
   Table,
   Column,
+  EmptyState,
+  ErrorState,
+  TableSkeleton,
 } from '../components/common';
 import {
   Plus,
   DollarSign,
   TrendingUp,
   Target,
-  Search,
   Eye,
   Edit2,
   Trash2,
@@ -21,12 +23,14 @@ import {
   LayoutGrid,
   List,
   ArrowRight,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { leadService } from '../api';
 import {
   Lead,
   LeadStatus,
-  LeadFilterParams,
+  LeadDiscoveryFilterParams,
   CreateLeadPayload,
 } from '../types';
 import {
@@ -35,32 +39,8 @@ import {
   ArchiveLeadModal,
   StageChangeModal,
   LeadKanbanBoard,
+  LeadDiscoveryFilters,
 } from '../components/leads';
-
-const PRODUCTS: Array<{ label: string; value: string }> = [
-  { label: 'All Products', value: '' },
-  { label: 'Higher IQ', value: 'Higher IQ' },
-  { label: 'HRMS Portal', value: 'HRMS Portal' },
-  { label: 'Both Suites', value: 'Both' },
-];
-
-const PRIORITIES: Array<{ label: string; value: string }> = [
-  { label: 'All Priorities', value: '' },
-  { label: 'High Priority', value: 'High' },
-  { label: 'Medium Priority', value: 'Medium' },
-  { label: 'Low Priority', value: 'Low' },
-];
-
-const STAGES: Array<{ label: string; value: string }> = [
-  { label: 'All Stages', value: '' },
-  { label: 'New', value: 'New' },
-  { label: 'Contacted', value: 'Contacted' },
-  { label: 'Replied', value: 'Replied' },
-  { label: 'Demo Booked', value: 'Demo Booked' },
-  { label: 'Demo Done', value: 'Demo Done' },
-  { label: 'Won', value: 'Won' },
-  { label: 'Lost', value: 'Lost' },
-];
 
 const PIPELINE_BOARD_STAGES: LeadStatus[] = [
   'New',
@@ -82,8 +62,31 @@ const STAGE_COLOR_MAP: Record<string, { bg: string; color: string; border: strin
   Lost: { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.35)' },
 };
 
+const INITIAL_FILTERS: LeadDiscoveryFilterParams = {
+  search: '',
+  product: '',
+  priority: '',
+  status: '',
+  source: '',
+  campaign: '',
+  existingTools: '',
+  followUpStatus: '',
+  industry: '',
+  location: '',
+  employeeSize: '',
+  hiringVolume: '',
+  leadSignals: '',
+  productFit: '',
+  jobTitle: '',
+  decisionMaker: '',
+  company: '',
+  productRelevance: '',
+  includeArchived: false,
+};
+
 export const LeadsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
 
   // List view leads
@@ -103,12 +106,8 @@ export const LeadsPage: React.FC = () => {
     Lost: [],
   });
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [productFilter, setProductFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  // Discovery Filters
+  const [discoveryFilters, setDiscoveryFilters] = useState<LeadDiscoveryFilterParams>(INITIAL_FILTERS);
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -123,40 +122,32 @@ export const LeadsPage: React.FC = () => {
   // Fetch paginated leads for Table view
   const loadLeads = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params: LeadFilterParams = {
+      const params: LeadDiscoveryFilterParams = {
+        ...discoveryFilters,
         page,
         limit: pageSize,
-        search: search.trim() || undefined,
-        product: productFilter || undefined,
-        priority: priorityFilter || undefined,
-        status: statusFilter || undefined,
-        includeArchived,
       };
       const res = await leadService.getLeads(params);
       if (res.data) {
         setLeads(res.data.items || []);
         setTotal(res.data.total || 0);
       }
-    } catch {
-      // Backend error fallback
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      setError(errObj.message || 'Unable to connect to lead discovery service.');
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, productFilter, priorityFilter, statusFilter, includeArchived]);
+  }, [discoveryFilters, page, pageSize]);
 
   // Fetch pipeline grouped leads for Kanban view
   const loadPipeline = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params: LeadFilterParams = {
-        search: search.trim() || undefined,
-        product: productFilter || undefined,
-        priority: priorityFilter || undefined,
-        status: statusFilter || undefined,
-        includeArchived,
-      };
-      const res = await leadService.getPipeline(params);
+      const res = await leadService.getPipeline(discoveryFilters);
       if (res.data) {
         const grouped: Partial<Record<LeadStatus, Lead[]>> = {
           New: [],
@@ -174,12 +165,13 @@ export const LeadsPage: React.FC = () => {
         });
         setPipelineGroups(grouped);
       }
-    } catch {
-      // Backend error fallback
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      setError(errObj.message || 'Unable to connect to lead pipeline service.');
     } finally {
       setLoading(false);
     }
-  }, [search, productFilter, priorityFilter, statusFilter, includeArchived]);
+  }, [discoveryFilters]);
 
   // Load appropriate data on view or filter change
   useEffect(() => {
@@ -216,6 +208,16 @@ export const LeadsPage: React.FC = () => {
       totalCount: viewMode === 'kanban' ? allLeads.length : total,
     };
   }, [viewMode, pipelineGroups, leads, total]);
+
+  const handleFiltersChange = (newFilters: LeadDiscoveryFilterParams) => {
+    setDiscoveryFilters(newFilters);
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setDiscoveryFilters(INITIAL_FILTERS);
+    setPage(1);
+  };
 
   const handleCreateOrUpdate = async (payload: CreateLeadPayload) => {
     if (leadToEdit) {
@@ -316,7 +318,7 @@ export const LeadsPage: React.FC = () => {
   const columns: Column<Lead>[] = [
     {
       key: 'title',
-      header: 'Opportunity Title & Account',
+      header: 'Opportunity & Account',
       sortable: true,
       render: (row) => (
         <div>
@@ -328,7 +330,13 @@ export const LeadsPage: React.FC = () => {
           </div>
           <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
             <Building2 size={12} />
-            <span>{row.companyName}</span>
+            <span style={{ fontWeight: 600 }}>{row.companyName}</span>
+            {row.companyIndustry && (
+              <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>• {row.companyIndustry}</span>
+            )}
+            {row.companyLocation && (
+              <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>• {row.companyLocation}</span>
+            )}
           </div>
         </div>
       ),
@@ -358,7 +366,7 @@ export const LeadsPage: React.FC = () => {
     },
     {
       key: 'product',
-      header: 'Product',
+      header: 'Product & Tools',
       sortable: true,
       render: (row) => {
         let bg = 'rgba(59, 130, 246, 0.12)';
@@ -375,115 +383,168 @@ export const LeadsPage: React.FC = () => {
           border = 'rgba(16, 185, 129, 0.25)';
         }
 
+        const tools = row.existingTools ? row.existingTools.split(',').map((t) => t.trim()).slice(0, 2) : [];
+
         return (
-          <span
-            style={{
-              padding: '3px 8px',
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              backgroundColor: bg,
-              color,
-              border: `1px solid ${border}`,
-              display: 'inline-block',
-            }}
-          >
-            {row.product}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span
+              style={{
+                padding: '3px 8px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                backgroundColor: bg,
+                color,
+                border: `1px solid ${border}`,
+                display: 'inline-block',
+                width: 'fit-content',
+              }}
+            >
+              {row.product}
+            </span>
+            {tools.length > 0 && (
+              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                {tools.map((t, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      fontSize: '0.6875rem',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      backgroundColor: 'var(--bg-subtle, rgba(255,255,255,0.05))',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         );
       },
     },
     {
       key: 'priority',
-      header: 'Priority',
+      header: 'Priority & Signals',
       sortable: true,
       render: (row) => {
         const p = row.priority;
         const isHigh = p === 'High';
         const isMed = p === 'Medium';
+        const signals = row.detectedSignals || [];
+
         return (
-          <span
-            style={{
-              padding: '3px 8px',
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-              fontWeight: 800,
-              backgroundColor: isHigh
-                ? 'rgba(239, 68, 68, 0.12)'
-                : isMed
-                ? 'rgba(245, 158, 11, 0.12)'
-                : 'rgba(100, 116, 139, 0.12)',
-              color: isHigh ? '#ef4444' : isMed ? '#f59e0b' : '#64748b',
-              border: `1px solid ${
-                isHigh
-                  ? 'rgba(239, 68, 68, 0.25)'
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span
+              style={{
+                padding: '3px 8px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                backgroundColor: isHigh
+                  ? 'rgba(239, 68, 68, 0.12)'
                   : isMed
-                  ? 'rgba(245, 158, 11, 0.25)'
-                  : 'rgba(100, 116, 139, 0.2)'
-              }`,
-              display: 'inline-block',
-            }}
-          >
-            {p}
-          </span>
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : 'rgba(100, 116, 139, 0.12)',
+                color: isHigh ? '#ef4444' : isMed ? '#f59e0b' : '#64748b',
+                border: `1px solid ${
+                  isHigh
+                    ? 'rgba(239, 68, 68, 0.25)'
+                    : isMed
+                    ? 'rgba(245, 158, 11, 0.25)'
+                    : 'rgba(100, 116, 139, 0.2)'
+                }`,
+                display: 'inline-block',
+                width: 'fit-content',
+              }}
+            >
+              {p}
+            </span>
+
+            {signals.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                {signals.slice(0, 2).map((sig, sIdx) => (
+                  <span
+                    key={sIdx}
+                    style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                      color: '#a78bfa',
+                      border: '1px solid rgba(139, 92, 246, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                    }}
+                  >
+                    <Sparkles size={8} />
+                    {sig}
+                  </span>
+                ))}
+                {signals.length > 2 && (
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                    +{signals.length - 2}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         );
       },
     },
     {
-      key: 'qualificationScore',
-      header: 'Fit Score',
-      sortable: true,
-      render: (row) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
+      key: 'followUpStatus',
+      header: 'Follow-Up Status',
+      render: (row) => {
+        const st = row.followUpStatus || 'No Follow-up';
+        const isOverdue = st === 'Overdue';
+        const isDueToday = st === 'Due Today';
+        const isScheduled = st === 'Scheduled';
+
+        return (
+          <span
             style={{
-              fontWeight: 800,
-              fontSize: '0.875rem',
-              color:
-                row.qualificationScore >= 70
-                  ? '#10b981'
-                  : row.qualificationScore >= 40
-                  ? '#f59e0b'
-                  : 'var(--text-muted)',
-              minWidth: '24px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: isOverdue
+                ? 'rgba(239, 68, 68, 0.12)'
+                : isDueToday
+                ? 'rgba(245, 158, 11, 0.12)'
+                : isScheduled
+                ? 'rgba(59, 130, 246, 0.12)'
+                : 'rgba(100, 116, 139, 0.1)',
+              color: isOverdue
+                ? '#ef4444'
+                : isDueToday
+                ? '#f59e0b'
+                : isScheduled
+                ? '#3b82f6'
+                : 'var(--text-muted)',
+              border: `1px solid ${
+                isOverdue
+                  ? 'rgba(239, 68, 68, 0.25)'
+                  : isDueToday
+                  ? 'rgba(245, 158, 11, 0.25)'
+                  : isScheduled
+                  ? 'rgba(59, 130, 246, 0.25)'
+                  : 'var(--border-color)'
+              }`,
             }}
           >
-            {row.qualificationScore}
-          </div>
-          <div
-            style={{
-              width: '45px',
-              height: '5px',
-              backgroundColor: 'var(--border-color)',
-              borderRadius: '3px',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.min(row.qualificationScore, 100)}%`,
-                backgroundColor:
-                  row.qualificationScore >= 70
-                    ? '#10b981'
-                    : row.qualificationScore >= 40
-                    ? '#f59e0b'
-                    : '#64748b',
-              }}
-            />
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'value',
-      header: 'Value',
-      sortable: true,
-      render: (row) => (
-        <div style={{ fontWeight: 700, color: 'var(--status-success-text, #10b981)', fontSize: '0.875rem' }}>
-          ${(row.value || 0).toLocaleString()}
-        </div>
-      ),
+            <Clock size={11} />
+            {st}
+          </span>
+        );
+      },
     },
     {
       key: 'status',
@@ -531,6 +592,21 @@ export const LeadsPage: React.FC = () => {
           </div>
         );
       },
+    },
+    {
+      key: 'value',
+      header: 'Value & Score',
+      sortable: true,
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 700, color: 'var(--status-success-text, #10b981)', fontSize: '0.875rem' }}>
+            ${(row.value || 0).toLocaleString()}
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            Score: <strong style={{ color: row.qualificationScore >= 70 ? '#10b981' : row.qualificationScore >= 40 ? '#f59e0b' : 'inherit' }}>{row.qualificationScore}</strong>
+          </div>
+        </div>
+      ),
     },
     {
       key: 'actions',
@@ -598,8 +674,8 @@ export const LeadsPage: React.FC = () => {
   return (
     <div>
       <PageHeader
-        title="Lead Pipeline & Qualification"
-        description="Track opportunities across stages: New → Contacted → Replied → Demo Booked → Demo Done → Won / Lost."
+        title="Lead Discovery & Qualification Pipeline"
+        description="Discover high-value prospects with HireIQ & HRMS lead signals, tool intelligence, and multi-dimensional search."
         breadcrumbs={[{ label: 'Home' }, { label: 'Pipeline', active: true }]}
         actions={
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -823,126 +899,79 @@ export const LeadsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* FILTER CONTROLS */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '10px',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1rem',
-          padding: '1rem',
-          backgroundColor: 'var(--bg-card)',
-          borderRadius: '10px',
-          border: '1px solid var(--border-color)',
-        }}
-      >
-        {/* Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 240px', minWidth: '220px' }}>
-          <Search size={16} style={{ color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            className="input"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
+      {/* ADVANCED LEAD DISCOVERY & FILTERS */}
+      <LeadDiscoveryFilters
+        filters={discoveryFilters}
+        onChange={handleFiltersChange}
+        onReset={handleResetFilters}
+        totalResults={stats.totalCount}
+        loading={loading}
+      />
+
+      {/* ERROR STATE */}
+      {error && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <ErrorState
+            title="Failed to load lead intelligence"
+            message={error}
+            onRetry={() => {
+              if (viewMode === 'kanban') loadPipeline();
+              else loadLeads();
             }}
-            placeholder="Search lead title, account..."
-            style={{ width: '100%' }}
           />
         </div>
-
-        {/* Product Filter */}
-        <select
-          className="input"
-          value={productFilter}
-          onChange={(e) => {
-            setProductFilter(e.target.value);
-            setPage(1);
-          }}
-          style={{ width: '160px' }}
-        >
-          {PRODUCTS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Priority Filter */}
-        <select
-          className="input"
-          value={priorityFilter}
-          onChange={(e) => {
-            setPriorityFilter(e.target.value);
-            setPage(1);
-          }}
-          style={{ width: '160px' }}
-        >
-          {PRIORITIES.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Stage Filter */}
-        <select
-          className="input"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
-            setPage(1);
-          }}
-          style={{ width: '160px' }}
-        >
-          {STAGES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Include Archived toggle */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem', cursor: 'pointer', color: 'var(--text-muted)' }}>
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => {
-              setIncludeArchived(e.target.checked);
-              setPage(1);
-            }}
-          />
-          <span>Archived</span>
-        </label>
-      </div>
+      )}
 
       {/* VIEW RENDER: KANBAN BOARD OR LIST TABLE */}
-      {viewMode === 'kanban' ? (
-        <LeadKanbanBoard
-          stages={PIPELINE_BOARD_STAGES}
-          leadsByStage={pipelineGroups}
-          onLeadClick={(lead) => setSelectedLeadForDetail(lead)}
-          onRequestStageChange={handleRequestStageChange}
-          loading={loading}
-        />
-      ) : (
-        <Table
-          columns={columns}
-          data={leads}
-          loading={loading}
-          keyExtractor={(row) => row.id}
-          pagination={{
-            page,
-            limit: pageSize,
-            total,
-            onPageChange: (newPage) => setPage(newPage),
-          }}
-          emptyTitle="No Leads Found"
-          emptyDescription="Create your first qualified opportunity to track fit signals, product solutions, and decision makers."
-        />
+      {!error && (
+        <>
+          {viewMode === 'kanban' ? (
+            stats.totalCount === 0 && !loading ? (
+              <EmptyState
+                title="No Leads Found in Pipeline"
+                description="No prospects matched your current search and discovery filter criteria."
+                action={{
+                  label: 'Reset All Filters',
+                  onClick: handleResetFilters,
+                }}
+              />
+            ) : (
+              <LeadKanbanBoard
+                stages={PIPELINE_BOARD_STAGES}
+                leadsByStage={pipelineGroups}
+                onLeadClick={(lead) => setSelectedLeadForDetail(lead)}
+                onRequestStageChange={handleRequestStageChange}
+                loading={loading}
+              />
+            )
+          ) : loading && leads.length === 0 ? (
+            <TableSkeleton rows={6} cols={7} />
+          ) : leads.length === 0 ? (
+            <EmptyState
+              title="No Leads Found"
+              description="No prospects matched your current search and discovery filter criteria."
+              action={{
+                label: 'Reset All Filters',
+                onClick: handleResetFilters,
+              }}
+            />
+          ) : (
+            <Table
+              columns={columns}
+              data={leads}
+              loading={loading}
+              keyExtractor={(row) => row.id}
+              pagination={{
+                page,
+                limit: pageSize,
+                total,
+                onPageChange: (newPage) => setPage(newPage),
+              }}
+              emptyTitle="No Leads Found"
+              emptyDescription="No prospects matched your current search and discovery filter criteria."
+            />
+          )}
+        </>
       )}
 
       {/* CREATE / EDIT MODAL */}

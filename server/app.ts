@@ -12,6 +12,7 @@ import { templateRouter } from './routes/templateRoutes';
 import { targetRouter } from './routes/targetRoutes';
 import { reportingRouter } from './routes/reportingRoutes';
 import { leadCaptureRouter } from './routes/leadCaptureRoutes';
+import { discoveryRouter } from './routes/discoveryRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -43,6 +44,7 @@ export function createApp(): express.Application {
   app.use('/api/v1/companies', companyRouter);
   app.use('/api/v1/contacts', contactRouter);
   app.use('/api/v1/leads', leadRouter);
+  app.use('/api/v1/discovery', discoveryRouter);
   app.use('/api/v1/activities', activityRouter);
   app.use('/api/v1/follow-ups', followUpRouter);
   app.use('/api/v1/campaigns', campaignRouter);

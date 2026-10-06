@@ -24,6 +24,11 @@ companyRouter.get('/', requirePermission('companies:read'), (req: AuthenticatedR
       includeArchived,
       sortBy,
       sortOrder,
+      hiringVolume,
+      hiringSignals,
+      signals,
+      existingTools,
+      currentTools,
     } = req.query;
 
     const result = companyService.list({
@@ -38,6 +43,11 @@ companyRouter.get('/', requirePermission('companies:read'), (req: AuthenticatedR
       includeArchived: includeArchived === 'true' || includeArchived === '1',
       sortBy: sortBy ? String(sortBy) : undefined,
       sortOrder: (sortOrder === 'asc' || sortOrder === 'desc') ? sortOrder : undefined,
+      hiringVolume: hiringVolume ? String(hiringVolume) : undefined,
+      hiringSignals: hiringSignals ? String(hiringSignals) : undefined,
+      signals: signals ? String(signals) : undefined,
+      existingTools: existingTools ? String(existingTools) : undefined,
+      currentTools: currentTools ? String(currentTools) : undefined,
     });
 
     res.status(200).json({

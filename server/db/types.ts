@@ -181,6 +181,10 @@ export interface LeadWithRelationsRecord extends LeadRecord {
   contact_phone: string | null;
   contact_decision_maker: number | null;
   campaign_name?: string | null;
+  company_current_tools?: string | null;
+  company_hiring_signals?: string | null;
+  computed_follow_up_status?: string | null;
+  next_follow_up_due_date?: string | null;
 }
 
 export type CampaignStatusType = 'Draft' | 'Active' | 'Paused' | 'Completed' | 'Archived';
@@ -331,5 +335,73 @@ export interface FollowUpWithRelationsRecord extends FollowUpRecord {
   contact_email: string | null;
   contact_phone: string | null;
   computed_status?: FollowUpComputedStatus;
+}
+
+// Phase 9: Advanced Lead Discovery & Signals Types
+export const HIREIQ_LEAD_SIGNALS = [
+  'Bulk hiring',
+  'High-volume hiring',
+  'Multiple open roles',
+  'Resume screening',
+  'Shortlisting',
+  'ATS',
+  'Recruitment agency',
+  'Staffing',
+  'RPO',
+] as const;
+export type HireIqSignal = (typeof HIREIQ_LEAD_SIGNALS)[number];
+
+export const HRMS_LEAD_SIGNALS = [
+  'Manual attendance',
+  'Excel HR processes',
+  'Payroll',
+  'Leave management',
+  'Employee records',
+  'HRMS',
+  'HR software',
+] as const;
+export type HrmsSignal = (typeof HRMS_LEAD_SIGNALS)[number];
+
+export const ALL_LEAD_SIGNALS = [...HIREIQ_LEAD_SIGNALS, ...HRMS_LEAD_SIGNALS] as const;
+export type LeadSignal = (typeof ALL_LEAD_SIGNALS)[number];
+
+export const EXISTING_TOOLS = [
+  'Excel',
+  'greytHR',
+  'Keka',
+  'Zoho People',
+  'Darwinbox',
+  'Zoho Recruit',
+  'Naukri RMS',
+  'Workable',
+  'Greenhouse',
+  'No known tool',
+] as const;
+export type ExistingTool = (typeof EXISTING_TOOLS)[number];
+
+export const FOLLOW_UP_FILTER_STATUSES = [
+  'Pending',
+  'Overdue',
+  'Today',
+  'Upcoming',
+  'Completed',
+  'None',
+] as const;
+export type FollowUpFilterStatus = (typeof FOLLOW_UP_FILTER_STATUSES)[number];
+
+export interface DiscoveryOptionsResponse {
+  leadSources: string[];
+  industries: string[];
+  products: string[];
+  stages: string[];
+  priorities: string[];
+  existingTools: string[];
+  leadSignals: {
+    hireIq: string[];
+    hrms: string[];
+  };
+  employeeSizes: string[];
+  productFits: string[];
+  followUpStatuses: string[];
 }
 

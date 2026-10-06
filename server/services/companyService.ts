@@ -45,6 +45,11 @@ export interface CompanyFilterOptions {
   includeArchived?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  hiringVolume?: string;
+  hiringSignals?: string;
+  signals?: string;
+  existingTools?: string;
+  currentTools?: string;
 }
 
 export interface CompanyDetailResponse {
@@ -107,6 +112,38 @@ export class CompanyService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  /**
+   * Check for duplicate companies by name or website domain.
+   */
+  public checkDuplicate(
+    name: string,
+    website?: string
+  ): { isDuplicate: boolean; code?: string; existingCompany?: { id: string; name: string } } {
+    const normName = normalizeName(name);
+    const existingName = this.db.prepare(`
+      SELECT id, name FROM companies
+      WHERE normalized_name = ? AND status != 'Archived'
+    `).get(normName) as unknown as { id: string; name: string } | undefined;
+
+    if (existingName) {
+      return { isDuplicate: true, code: 'DUPLICATE_COMPANY_NAME', existingCompany: existingName };
+    }
+
+    if (website && website.trim()) {
+      const normDomain = extractDomain(website);
+      const existingDomain = this.db.prepare(`
+        SELECT id, name FROM companies
+        WHERE normalized_domain = ? AND status != 'Archived'
+      `).get(normDomain) as unknown as { id: string; name: string } | undefined;
+
+      if (existingDomain) {
+        return { isDuplicate: true, code: 'DUPLICATE_COMPANY_DOMAIN', existingCompany: existingDomain };
+      }
+    }
+
+    return { isDuplicate: false };
   }
 
   create(input: CreateCompanyInput, userId?: string): CompanyDetailResponse {
@@ -231,6 +268,49 @@ export class CompanyService {
     if (options.productFit) {
       conditions.push('product_fit = ?');
       params.push(options.productFit);
+    }
+
+    if (options.hiringVolume) {
+      conditions.push(`(
+        EXISTS (SELECT 1 FROM leads ld WHERE ld.company_id = companies.id AND ld.hiring_volume = ?)
+        OR LOWER(hiring_signals) LIKE ?
+      )`);
+      params.push(options.hiringVolume, `%${options.hiringVolume.toLowerCase()}%`);
+    }
+
+    const toolFilter = options.existingTools || options.currentTools;
+    if (toolFilter && toolFilter.trim()) {
+      const tools = toolFilter.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tools.length > 0) {
+        const toolClauses: string[] = [];
+        for (const t of tools) {
+          if (t.toLowerCase() === 'no known tool' || t.toLowerCase() === 'none') {
+            toolClauses.push("(current_tools IS NULL OR TRIM(current_tools) = '' OR LOWER(current_tools) LIKE '%none%' OR LOWER(current_tools) LIKE '%no known%')");
+          } else {
+            toolClauses.push('LOWER(current_tools) LIKE ?');
+            params.push(`%${t.toLowerCase()}%`);
+          }
+        }
+        if (toolClauses.length > 0) {
+          conditions.push(`(${toolClauses.join(' OR ')})`);
+        }
+      }
+    }
+
+    const sigFilter = options.hiringSignals || options.signals;
+    if (sigFilter && sigFilter.trim()) {
+      const sigs = sigFilter.split(',').map((s) => s.trim()).filter(Boolean);
+      if (sigs.length > 0) {
+        const sigClauses: string[] = [];
+        for (const s of sigs) {
+          sigClauses.push('(LOWER(hiring_signals) LIKE ? OR LOWER(notes) LIKE ?)');
+          const term = `%${s.toLowerCase()}%`;
+          params.push(term, term);
+        }
+        if (sigClauses.length > 0) {
+          conditions.push(`(${sigClauses.join(' OR ')})`);
+        }
+      }
     }
 
     if (options.search && options.search.trim()) {

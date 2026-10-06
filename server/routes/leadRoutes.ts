@@ -1,14 +1,60 @@
 import { Router, Response } from 'express';
 import { LeadService } from '../services/leadService';
+import { DiscoveryService } from '../services/discoveryService';
 import { authenticateToken, AuthenticatedRequest, requirePermission } from '../middleware/auth';
 import { validateLeadInput, validateLeadUpdateInput, validateStageChangeInput } from '../middleware/validate';
 import { ProductType } from '../db/types';
 
 export const leadRouter = Router();
 const leadService = new LeadService();
+const discoveryService = new DiscoveryService();
 
 // All lead routes require authentication
 leadRouter.use(authenticateToken);
+
+// GET /api/v1/leads/metadata and /api/v1/leads/discovery/metadata - Get available discovery options
+leadRouter.get(
+  ['/metadata', '/discovery/metadata'],
+  requirePermission('leads:read'),
+  (_req: AuthenticatedRequest, res: Response): void => {
+    try {
+      const options = discoveryService.getDiscoveryOptions();
+      res.status(200).json({
+        success: true,
+        data: options,
+      });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to retrieve lead metadata',
+        code: err.code || 'LEAD_METADATA_ERROR',
+      });
+    }
+  }
+);
+
+// GET /api/v1/leads/discovery - Advanced lead discovery search alias
+leadRouter.get(
+  '/discovery',
+  requirePermission('leads:read'),
+  (req: AuthenticatedRequest, res: Response): void => {
+    try {
+      const result = leadService.list(req.query as Record<string, unknown>);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to execute discovery search',
+        code: err.code || 'DISCOVERY_SEARCH_ERROR',
+      });
+    }
+  }
+);
 
 // GET /api/v1/leads/pipeline - Get leads grouped by stages for Kanban view
 leadRouter.get('/pipeline', requirePermission('leads:read'), (req: AuthenticatedRequest, res: Response): void => {
@@ -117,6 +163,21 @@ leadRouter.get('/', requirePermission('leads:read'), (req: AuthenticatedRequest,
       sortOrder,
       campaignId,
       source,
+      existingTools,
+      existingTool,
+      signals,
+      hiringSignals,
+      leadSignals,
+      hiringVolume,
+      followUpStatus,
+      industry,
+      location,
+      employeeSize,
+      productFit,
+      jobTitle,
+      decisionMaker,
+      company,
+      productRelevance,
     } = req.query;
 
     const result = leadService.list({
@@ -134,6 +195,21 @@ leadRouter.get('/', requirePermission('leads:read'), (req: AuthenticatedRequest,
       includeArchived: includeArchived === 'true' || includeArchived === '1',
       sortBy: sortBy ? String(sortBy) : undefined,
       sortOrder: sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : undefined,
+      existingTools: existingTools ? String(existingTools) : undefined,
+      existingTool: existingTool ? String(existingTool) : undefined,
+      signals: signals ? String(signals) : undefined,
+      hiringSignals: hiringSignals ? String(hiringSignals) : undefined,
+      leadSignals: leadSignals ? String(leadSignals) : undefined,
+      hiringVolume: hiringVolume ? String(hiringVolume) : undefined,
+      followUpStatus: followUpStatus ? String(followUpStatus) : undefined,
+      industry: industry ? String(industry) : undefined,
+      location: location ? String(location) : undefined,
+      employeeSize: employeeSize ? String(employeeSize) : undefined,
+      productFit: productFit ? String(productFit) : undefined,
+      jobTitle: jobTitle ? String(jobTitle) : undefined,
+      decisionMaker: decisionMaker !== undefined ? String(decisionMaker) : undefined,
+      company: company ? String(company) : undefined,
+      productRelevance: productRelevance ? String(productRelevance) : undefined,
     });
 
     res.status(200).json({

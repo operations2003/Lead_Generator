@@ -181,6 +181,137 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: '003_enhance_contacts_schema',
+    name: 'Add notes, status, and targeted role indexes to contacts table with foreign key integrity',
+    up: (db: DatabaseSync) => {
+      // Check existing columns in contacts
+      const tableInfo = db.prepare("PRAGMA table_info(contacts)").all() as unknown as { name: string }[];
+      const colNames = new Set(tableInfo.map((c) => c.name));
+
+      if (!colNames.has('notes')) {
+        db.exec(`ALTER TABLE contacts ADD COLUMN notes TEXT;`);
+      }
+      if (!colNames.has('status')) {
+        db.exec(`ALTER TABLE contacts ADD COLUMN status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Contacted', 'Qualified', 'Unresponsive', 'Archived'));`);
+      }
+
+      // Add indexes required by Phase 4
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
+        CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
+        CREATE INDEX IF NOT EXISTS idx_contacts_title ON contacts(title);
+        CREATE INDEX IF NOT EXISTS idx_contacts_decision_maker ON contacts(decision_maker);
+        CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
+        CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
+      `);
+    },
+  },
+  {
+    id: '004_enhance_leads_qualification_schema',
+    name: 'Add product, qualification signals, notes and indexes to leads table',
+    up: (db: DatabaseSync) => {
+      const tableInfo = db.prepare("PRAGMA table_info(leads)").all() as unknown as { name: string }[];
+      const colNames = new Set(tableInfo.map((c) => c.name));
+
+      if (!colNames.has('product')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN product TEXT NOT NULL DEFAULT 'Higher IQ';`);
+      }
+      if (!colNames.has('hiring_volume')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN hiring_volume TEXT NOT NULL DEFAULT 'Medium';`);
+      }
+      if (!colNames.has('hiring_multiple_roles')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN hiring_multiple_roles INTEGER NOT NULL DEFAULT 0;`);
+      }
+      if (!colNames.has('manual_hr_processes')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN manual_hr_processes INTEGER NOT NULL DEFAULT 0;`);
+      }
+      if (!colNames.has('existing_tools')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN existing_tools TEXT;`);
+      }
+      if (!colNames.has('company_size')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN company_size TEXT;`);
+      }
+      if (!colNames.has('decision_maker_identified')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN decision_maker_identified INTEGER NOT NULL DEFAULT 0;`);
+      }
+      if (!colNames.has('qualification_score')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN qualification_score INTEGER NOT NULL DEFAULT 50;`);
+      }
+      if (!colNames.has('qualification_notes')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN qualification_notes TEXT;`);
+      }
+      if (!colNames.has('notes')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN notes TEXT;`);
+      }
+
+      // Add indexes required by Phase 5
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_leads_contact_id ON leads(contact_id);
+        CREATE INDEX IF NOT EXISTS idx_leads_product ON leads(product);
+        CREATE INDEX IF NOT EXISTS idx_leads_priority ON leads(priority);
+        CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(qualification_score);
+        CREATE INDEX IF NOT EXISTS idx_leads_company_product ON leads(company_id, product);
+      `);
+    },
+  },
+  {
+    id: '005_lead_pipeline_and_stage_history',
+    name: 'Add lead stage history, pipeline timestamps, lost reasons, and pipeline indexes',
+    up: (db: DatabaseSync) => {
+      // 1. Add pipeline timestamp & lost reason columns to leads table if missing
+      const tableInfo = db.prepare("PRAGMA table_info(leads)").all() as unknown as { name: string }[];
+      const colNames = new Set(tableInfo.map((c) => c.name));
+
+      if (!colNames.has('lost_reason')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN lost_reason TEXT;`);
+      }
+      if (!colNames.has('won_at')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN won_at TEXT;`);
+      }
+      if (!colNames.has('lost_at')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN lost_at TEXT;`);
+      }
+      if (!colNames.has('stage_changed_at')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN stage_changed_at TEXT;`);
+        db.exec(`UPDATE leads SET stage_changed_at = datetime('now') WHERE stage_changed_at IS NULL;`);
+      }
+
+      // 2. Create lead_stage_history table for full stage transition traceability
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS lead_stage_history (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL,
+          from_stage TEXT,
+          to_stage TEXT NOT NULL,
+          changed_by TEXT,
+          notes TEXT,
+          lost_reason TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+          FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+      `);
+
+      // 3. Add pipeline and dashboard query indexes
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_lead_history_lead_id ON lead_stage_history(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_lead_history_created_at ON lead_stage_history(created_at);
+        CREATE INDEX IF NOT EXISTS idx_lead_history_to_stage ON lead_stage_history(to_stage);
+        CREATE INDEX IF NOT EXISTS idx_leads_stage_priority ON leads(status, priority);
+        CREATE INDEX IF NOT EXISTS idx_leads_stage_product ON leads(status, product);
+        CREATE INDEX IF NOT EXISTS idx_leads_stage_changed_at ON leads(stage_changed_at);
+      `);
+
+      // 4. Migrate any old stage names in existing leads to Phase 6 stages
+      db.exec(`
+        UPDATE leads SET status = 'New' WHERE status IN ('Discovery', 'Prospect');
+        UPDATE leads SET status = 'Contacted' WHERE status IN ('Evaluating');
+        UPDATE leads SET status = 'Demo Booked' WHERE status IN ('Qualified', 'Proposal Sent');
+        UPDATE leads SET status = 'Demo Done' WHERE status IN ('Proposal', 'Negotiation');
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): { applied: string[]; total: number } {
@@ -537,6 +668,7 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
   }
 
   // Seed Contacts for Company Detail view
+  // Seed Contacts with target roles: Recruitment Heads, Talent Acquisition, HR Heads, CEOs, Founders, Finance, IT Heads
   const seedContacts = [
     {
       id: 'cnt_001',
@@ -548,6 +680,8 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       department: 'Engineering',
       decision_maker: 1,
       linkedin_url: 'https://linkedin.com/in/alex-rivera-tech',
+      notes: 'Key technical buyer evaluating migration timeline and Kubernetes clusters.',
+      status: 'Active',
     },
     {
       id: 'cnt_002',
@@ -559,6 +693,8 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       department: 'Human Resources',
       decision_maker: 1,
       linkedin_url: 'https://linkedin.com/in/elena-rostova-hr',
+      notes: 'Leading high-volume tech hiring. Interested in automated candidate outreach and screening.',
+      status: 'Active',
     },
     {
       id: 'cnt_003',
@@ -570,6 +706,8 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       department: 'Security & Infrastructure',
       decision_maker: 1,
       linkedin_url: 'https://linkedin.com/in/marcus-sterling-ciso',
+      notes: 'Strict compliance focus (SOC2, PCI). Needs security reviews prior to procurement.',
+      status: 'Active',
     },
     {
       id: 'cnt_004',
@@ -581,6 +719,8 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       department: 'Executive',
       decision_maker: 1,
       linkedin_url: 'https://linkedin.com/in/aris-thorne-md',
+      notes: 'Champion for cloud modernization and HIPAA compliant integrations.',
+      status: 'Active',
     },
     {
       id: 'cnt_005',
@@ -592,32 +732,133 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       department: 'Engineering',
       decision_maker: 1,
       linkedin_url: 'https://linkedin.com/in/chloe-bennett-cloud',
+      notes: 'Manages AWS infrastructure budget. Prioritizes scalable uptime and multi-region failover.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_006',
+      company_id: 'cmp_techcorp_01',
+      name: 'Jonathan Vance',
+      email: 'j.vance@techcorp.io',
+      phone: '+1 (415) 555-0101',
+      title: 'Chief Executive Officer & Founder',
+      department: 'Executive',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/jonathan-vance-ceo',
+      notes: 'Founder and ultimate decision maker for major vendor commitments >$50k.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_007',
+      company_id: 'cmp_finpulse_02',
+      name: 'Sophia Martinez',
+      email: 's.martinez@finpulse.com',
+      phone: '+1 (212) 555-0211',
+      title: 'Chief People Officer & HR Head',
+      department: 'Human Resources',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/sophia-martinez-cpo',
+      notes: 'Overseeing global HR operations, employee retention, and talent acquisition tooling.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_008',
+      company_id: 'cmp_nexus_03',
+      name: 'David Cho',
+      email: 'dcho@nexushealth.org',
+      phone: '+1 (617) 555-0177',
+      title: 'Senior Talent Acquisition Manager',
+      department: 'Human Resources',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/david-cho-recruiting',
+      notes: 'Hiring clinical and engineering staff. Needs rapid pipeline expansion.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_009',
+      company_id: 'cmp_velocix_04',
+      name: 'Priya Sharma',
+      email: 'priya.s@velocix.net',
+      phone: '+1 (312) 555-0145',
+      title: 'Global Head of Recruitment',
+      department: 'Human Resources',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/priya-sharma-talent',
+      notes: 'Scaling IoT fleet engineers and operations team across North America.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_010',
+      company_id: 'cmp_apex_05',
+      name: 'Rachel Adams',
+      email: 'r.adams@apexretail.com',
+      phone: '+1 (512) 555-0199',
+      title: 'VP of Finance & Payroll Operations',
+      department: 'Finance',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/rachel-adams-cfo',
+      notes: 'Responsible for department budget approvals, payroll systems, and ROI validation.',
+      status: 'Active',
+    },
+    {
+      id: 'cnt_011',
+      company_id: 'cmp_zenith_06',
+      name: 'Daniel Wu',
+      email: 'daniel@zenithai.tech',
+      phone: '+1 (206) 555-0182',
+      title: 'Founder & Head of AI Infrastructure',
+      department: 'Engineering',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/daniel-wu-ai',
+      notes: 'Technical co-founder evaluating GPU clusters and cloud pipeline automation.',
+      status: 'Active',
     },
   ];
 
   const insertContactStmt = db.prepare(`
-    INSERT INTO contacts (id, company_id, name, email, phone, title, department, decision_maker, linkedin_url, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    ON CONFLICT(id) DO NOTHING
+    INSERT INTO contacts (id, company_id, name, email, phone, title, department, decision_maker, linkedin_url, notes, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      email = excluded.email,
+      phone = excluded.phone,
+      title = excluded.title,
+      department = excluded.department,
+      decision_maker = excluded.decision_maker,
+      linkedin_url = excluded.linkedin_url,
+      notes = excluded.notes,
+      status = excluded.status,
+      updated_at = datetime('now')
   `);
 
   for (const cnt of seedContacts) {
     insertContactStmt.run(
       cnt.id, cnt.company_id, cnt.name, cnt.email, cnt.phone,
-      cnt.title, cnt.department, cnt.decision_maker, cnt.linkedin_url
+      cnt.title, cnt.department, cnt.decision_maker, cnt.linkedin_url,
+      cnt.notes, cnt.status
     );
   }
 
-  // Seed Leads for Company Detail view
+  // Seed Leads with contact references (Company → Contacts → Lead relationship) & Qualification Signals
   const seedLeads = [
     {
       id: 'ld_001',
       company_id: 'cmp_techcorp_01',
       contact_id: 'cnt_001',
+      product: 'Both',
       title: 'Enterprise Multi-Cloud Infrastructure Security',
       value: 65000,
-      status: 'Qualified',
+      status: 'Demo Booked',
       priority: 'High',
+      hiring_volume: 'High',
+      hiring_multiple_roles: 1,
+      manual_hr_processes: 1,
+      existing_tools: 'Workday, Jira, AWS, Datadog',
+      company_size: '201-500',
+      decision_maker_identified: 1,
+      qualification_score: 95,
+      qualification_notes: 'Strong hiring volume (12+ cloud architects), manual screening bottlenecks, verified VP of Engineering buyer.',
+      notes: 'Key technical buyer evaluating migration timeline and assessment capabilities.',
       source: 'IT Mapping Outreach',
       assigned_to: 'usr_sales_001',
     },
@@ -625,10 +866,20 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       id: 'ld_002',
       company_id: 'cmp_finpulse_02',
       contact_id: 'cnt_003',
+      product: 'HRMS Portal',
       title: 'High-Frequency FinTech Data Pipeline Migration',
       value: 95000,
       status: 'New',
-      priority: 'Urgent',
+      priority: 'High',
+      hiring_volume: 'High',
+      hiring_multiple_roles: 1,
+      manual_hr_processes: 1,
+      existing_tools: 'BambooHR, Lever, Bloomberg Terminal',
+      company_size: '501-1000',
+      decision_maker_identified: 1,
+      qualification_score: 88,
+      qualification_notes: 'High-volume data engineering hiring and manual onboarding issues in regulated financial trading.',
+      notes: 'Strict compliance focus (SOC2, PCI). CISO verified as key security gatekeeper.',
       source: 'Direct Sourced',
       assigned_to: 'usr_sales_001',
     },
@@ -636,25 +887,138 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       id: 'ld_003',
       company_id: 'cmp_apex_05',
       contact_id: 'cnt_005',
+      product: 'Higher IQ',
       title: 'Omnichannel Cloud Scale Expansion',
       value: 48000,
       status: 'Won',
       priority: 'High',
+      hiring_volume: 'Medium',
+      hiring_multiple_roles: 1,
+      manual_hr_processes: 0,
+      existing_tools: 'Gusto, Greenhouse, Stripe',
+      company_size: '201-500',
+      decision_maker_identified: 1,
+      qualification_score: 82,
+      qualification_notes: 'Evaluating automated coding and system architecture assessments for 6 frontend hires.',
+      notes: 'Won multi-year cloud contract; onboarding candidates via automated screening.',
       source: 'Referral',
       assigned_to: 'usr_manager_001',
+    },
+    {
+      id: 'ld_004',
+      company_id: 'cmp_techcorp_01',
+      contact_id: 'cnt_002',
+      product: 'Higher IQ',
+      title: 'AI-Powered Technical Recruitment Pipeline',
+      value: 38000,
+      status: 'Demo Done',
+      priority: 'High',
+      hiring_volume: 'High',
+      hiring_multiple_roles: 1,
+      manual_hr_processes: 1,
+      existing_tools: 'Workday, Greenhouse',
+      company_size: '201-500',
+      decision_maker_identified: 1,
+      qualification_score: 92,
+      qualification_notes: 'Elena Rostova actively sourcing cloud architects. Wants Higher IQ for automated interviewing.',
+      notes: 'Pilot approved; contract sent for legal review.',
+      source: 'HR Executive Networking',
+      assigned_to: 'usr_sales_001',
+    },
+    {
+      id: 'ld_005',
+      company_id: 'cmp_apex_05',
+      contact_id: 'cnt_010',
+      product: 'HRMS Portal',
+      title: 'ERP Payroll & Billing Consolidation',
+      value: 52000,
+      status: 'Contacted',
+      priority: 'Medium',
+      hiring_volume: 'Medium',
+      hiring_multiple_roles: 0,
+      manual_hr_processes: 1,
+      existing_tools: 'Gusto, Excel',
+      company_size: '201-500',
+      decision_maker_identified: 1,
+      qualification_score: 68,
+      qualification_notes: 'VP of Finance seeking unified payroll with employee self-service to replace fragmented Gusto + spreadsheets.',
+      notes: 'Demo delivered; ROI calculation model submitted.',
+      source: 'Finance Outreach',
+      assigned_to: 'usr_sales_001',
+    },
+    {
+      id: 'ld_006',
+      company_id: 'cmp_nexus_03',
+      contact_id: 'cnt_004',
+      product: 'Both',
+      title: 'HIPAA Cloud Compliance & Zero-Trust Architecture',
+      value: 82000,
+      status: 'Replied',
+      priority: 'High',
+      hiring_volume: 'High',
+      hiring_multiple_roles: 1,
+      manual_hr_processes: 1,
+      existing_tools: 'Workday, Taleo, Epic Systems',
+      company_size: '1000-5000',
+      decision_maker_identified: 1,
+      qualification_score: 90,
+      qualification_notes: 'Hospital system hiring 20+ IT personnel, heavily manual compliance checks. Need both assessment and core compliance HRMS.',
+      notes: 'CTO Dr. Aris Thorne confirmed budget allocation for Q4.',
+      source: 'CTO Referral',
+      assigned_to: 'usr_admin_001',
     },
   ];
 
   const insertLeadStmt = db.prepare(`
-    INSERT INTO leads (id, company_id, contact_id, title, value, status, priority, source, assigned_to, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    ON CONFLICT(id) DO NOTHING
+    INSERT INTO leads (
+      id, company_id, contact_id, product, title, value, status, priority,
+      hiring_volume, hiring_multiple_roles, manual_hr_processes, existing_tools,
+      company_size, decision_maker_identified, qualification_score, qualification_notes, notes,
+      source, assigned_to, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      company_id = excluded.company_id,
+      contact_id = excluded.contact_id,
+      product = excluded.product,
+      title = excluded.title,
+      value = excluded.value,
+      status = excluded.status,
+      priority = excluded.priority,
+      hiring_volume = excluded.hiring_volume,
+      hiring_multiple_roles = excluded.hiring_multiple_roles,
+      manual_hr_processes = excluded.manual_hr_processes,
+      existing_tools = excluded.existing_tools,
+      company_size = excluded.company_size,
+      decision_maker_identified = excluded.decision_maker_identified,
+      qualification_score = excluded.qualification_score,
+      qualification_notes = excluded.qualification_notes,
+      notes = excluded.notes,
+      source = excluded.source,
+      assigned_to = excluded.assigned_to,
+      updated_at = datetime('now')
   `);
 
   for (const ld of seedLeads) {
     insertLeadStmt.run(
-      ld.id, ld.company_id, ld.contact_id, ld.title, ld.value,
-      ld.status, ld.priority, ld.source, ld.assigned_to
+      ld.id, ld.company_id, ld.contact_id, ld.product, ld.title, ld.value,
+      ld.status, ld.priority, ld.hiring_volume, ld.hiring_multiple_roles,
+      ld.manual_hr_processes, ld.existing_tools, ld.company_size,
+      ld.decision_maker_identified, ld.qualification_score, ld.qualification_notes,
+      ld.notes, ld.source, ld.assigned_to
     );
+
+    // Seed initial stage history entry if table exists and no history yet
+    try {
+      const existingHistory = db.prepare('SELECT COUNT(*) as count FROM lead_stage_history WHERE lead_id = ?').get(ld.id) as { count: number };
+      if (!existingHistory || existingHistory.count === 0) {
+        db.prepare(`
+          INSERT INTO lead_stage_history (id, lead_id, from_stage, to_stage, changed_by, notes, created_at)
+          VALUES (?, ?, NULL, ?, ?, ?, datetime('now'))
+        `).run(`hist_seed_${ld.id}`, ld.id, ld.status, ld.assigned_to, 'Initial lead stage assigned upon outreach discovery.');
+      }
+    } catch {
+      // Table might not exist yet during initial dry migration runs
+    }
   }
 }

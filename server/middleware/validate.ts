@@ -250,3 +250,292 @@ export function validateCompanyUpdateInput(req: Request, res: Response, next: Ne
   next();
 }
 
+export function validateContactInput(req: Request, res: Response, next: NextFunction): void {
+  const { name, title, companyId, email, status } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Contact name is required',
+      code: 'MISSING_NAME',
+    });
+    return;
+  }
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Job title is required',
+      code: 'MISSING_TITLE',
+    });
+    return;
+  }
+
+  if (!companyId || typeof companyId !== 'string' || companyId.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Company association (companyId) is required',
+      code: 'MISSING_COMPANY_ID',
+    });
+    return;
+  }
+
+  if (email && typeof email === 'string' && email.trim().length > 0) {
+    if (!EMAIL_REGEX.test(email.trim())) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid email address format',
+        code: 'INVALID_EMAIL_FORMAT',
+      });
+      return;
+    }
+  }
+
+  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Archived'];
+  if (status !== undefined && !validStatuses.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      code: 'INVALID_STATUS',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateContactUpdateInput(req: Request, res: Response, next: NextFunction): void {
+  const { name, title, companyId, email, status } = req.body;
+
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Contact name cannot be empty',
+      code: 'INVALID_NAME',
+    });
+    return;
+  }
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Job title cannot be empty',
+      code: 'INVALID_TITLE',
+    });
+    return;
+  }
+
+  if (companyId !== undefined && (typeof companyId !== 'string' || companyId.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Company association cannot be empty',
+      code: 'INVALID_COMPANY_ID',
+    });
+    return;
+  }
+
+  if (email !== undefined && typeof email === 'string' && email.trim().length > 0) {
+    if (!EMAIL_REGEX.test(email.trim())) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid email address format',
+        code: 'INVALID_EMAIL_FORMAT',
+      });
+      return;
+    }
+  }
+
+  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Archived'];
+  if (status !== undefined && !validStatuses.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      code: 'INVALID_STATUS',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateLeadInput(req: Request, res: Response, next: NextFunction): void {
+  const { title, companyId, product, priority, status, hiringVolume } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Lead title is required',
+      code: 'MISSING_TITLE',
+    });
+    return;
+  }
+
+  if (!companyId || typeof companyId !== 'string' || companyId.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Company association is required',
+      code: 'MISSING_COMPANY_ID',
+    });
+    return;
+  }
+
+  const validProducts = ['Higher IQ', 'HRMS Portal', 'Both'];
+  if (!product || !validProducts.includes(product)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid product. Must be one of: ${validProducts.join(', ')}`,
+      code: 'INVALID_PRODUCT',
+    });
+    return;
+  }
+
+  const validPriorities = ['High', 'Medium', 'Low'];
+  if (priority !== undefined && !validPriorities.includes(priority)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid priority. Must be one of: ${validPriorities.join(', ')}`,
+      code: 'INVALID_PRIORITY',
+    });
+    return;
+  }
+
+  const validStages = [
+    'New',
+    'Contacted',
+    'Replied',
+    'Demo Booked',
+    'Demo Done',
+    'Won',
+    'Lost',
+    'Archived',
+  ];
+  if (status !== undefined && !validStages.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid stage status. Must be one of: ${validStages.join(', ')}`,
+      code: 'INVALID_STATUS',
+    });
+    return;
+  }
+
+  const validHiringVolumes = ['High', 'Medium', 'Low', 'None'];
+  if (hiringVolume !== undefined && !validHiringVolumes.includes(hiringVolume)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid hiring volume. Must be one of: ${validHiringVolumes.join(', ')}`,
+      code: 'INVALID_HIRING_VOLUME',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateLeadUpdateInput(req: Request, res: Response, next: NextFunction): void {
+  const { title, companyId, product, priority, status, hiringVolume } = req.body;
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Lead title cannot be empty',
+      code: 'INVALID_TITLE',
+    });
+    return;
+  }
+
+  if (companyId !== undefined && (typeof companyId !== 'string' || companyId.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Company association cannot be empty',
+      code: 'INVALID_COMPANY_ID',
+    });
+    return;
+  }
+
+  const validProducts = ['Higher IQ', 'HRMS Portal', 'Both'];
+  if (product !== undefined && !validProducts.includes(product)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid product. Must be one of: ${validProducts.join(', ')}`,
+      code: 'INVALID_PRODUCT',
+    });
+    return;
+  }
+
+  const validPriorities = ['High', 'Medium', 'Low'];
+  if (priority !== undefined && !validPriorities.includes(priority)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid priority. Must be one of: ${validPriorities.join(', ')}`,
+      code: 'INVALID_PRIORITY',
+    });
+    return;
+  }
+
+  const validStages = [
+    'New',
+    'Contacted',
+    'Replied',
+    'Demo Booked',
+    'Demo Done',
+    'Won',
+    'Lost',
+    'Archived',
+  ];
+  if (status !== undefined && !validStages.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid stage status. Must be one of: ${validStages.join(', ')}`,
+      code: 'INVALID_STATUS',
+    });
+    return;
+  }
+
+  const validHiringVolumes = ['High', 'Medium', 'Low', 'None'];
+  if (hiringVolume !== undefined && !validHiringVolumes.includes(hiringVolume)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid hiring volume. Must be one of: ${validHiringVolumes.join(', ')}`,
+      code: 'INVALID_HIRING_VOLUME',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateStageChangeInput(req: Request, res: Response, next: NextFunction): void {
+  const { stage, lostReason } = req.body;
+
+  const validStages = [
+    'New',
+    'Contacted',
+    'Replied',
+    'Demo Booked',
+    'Demo Done',
+    'Won',
+    'Lost',
+    'Archived',
+  ];
+
+  if (!stage || typeof stage !== 'string' || !validStages.includes(stage)) {
+    res.status(400).json({
+      success: false,
+      message: `A valid stage is required. Must be one of: ${validStages.join(', ')}`,
+      code: 'INVALID_STAGE',
+    });
+    return;
+  }
+
+  if (stage === 'Lost' && (!lostReason || typeof lostReason !== 'string' || !lostReason.trim())) {
+    res.status(400).json({
+      success: false,
+      message: 'A lostReason is mandatory when transitioning a lead to Lost stage',
+      code: 'MISSING_LOST_REASON',
+    });
+    return;
+  }
+
+  next();
+}
+

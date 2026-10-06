@@ -58,11 +58,11 @@ export const DashboardPage: React.FC = () => {
       ),
     },
     {
-      key: 'estimatedValue',
+      key: 'value',
       header: 'Value',
       render: (row: Lead) => (
         <span style={{ fontWeight: 600, color: 'var(--status-success-text)' }}>
-          ${row.estimatedValue.toLocaleString()}
+          ${(row.value || 0).toLocaleString()}
         </span>
       ),
     },

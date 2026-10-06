@@ -80,25 +80,87 @@ export interface ContactRecord {
   name: string;
   email: string | null;
   phone: string | null;
-  title: string | null;
+  title: string;
   department: string | null;
   decision_maker: number;
   linkedin_url: string | null;
+  notes: string | null;
+  status: 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Archived';
   created_at: string;
   updated_at: string;
+}
+
+export interface ContactWithCompanyRecord extends ContactRecord {
+  company_name: string;
+  company_website: string;
+  company_domain: string;
+  company_industry: string;
+  company_location: string;
+}
+
+export type ProductType = 'Higher IQ' | 'HRMS Portal' | 'Both';
+export type LeadPriorityType = 'High' | 'Medium' | 'Low';
+export type LeadStageType =
+  | 'New'
+  | 'Contacted'
+  | 'Replied'
+  | 'Demo Booked'
+  | 'Demo Done'
+  | 'Won'
+  | 'Lost'
+  | 'Archived';
+
+export interface LeadStageHistoryRecord {
+  id: string;
+  lead_id: string;
+  from_stage: LeadStageType | null;
+  to_stage: LeadStageType;
+  changed_by: string | null;
+  notes: string | null;
+  lost_reason: string | null;
+  created_at: string;
 }
 
 export interface LeadRecord {
   id: string;
   company_id: string;
   contact_id: string | null;
+  product: ProductType;
   title: string;
   value: number;
-  status: string;
-  priority: string;
+  status: LeadStageType;
+  priority: LeadPriorityType;
+  hiring_volume: 'High' | 'Medium' | 'Low' | 'None';
+  hiring_multiple_roles: number;
+  manual_hr_processes: number;
+  existing_tools: string | null;
+  company_size: string | null;
+  decision_maker_identified: number;
+  qualification_score: number;
+  qualification_notes: string | null;
+  notes: string | null;
   source: string | null;
   assigned_to: string | null;
+  lost_reason: string | null;
+  won_at: string | null;
+  lost_at: string | null;
+  stage_changed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeadWithRelationsRecord extends LeadRecord {
+  company_name: string;
+  company_website: string;
+  company_domain: string;
+  company_industry: string;
+  company_location: string;
+  company_employee_size: string;
+  company_product_fit: string;
+  contact_name: string | null;
+  contact_title: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  contact_decision_maker: number | null;
 }
 

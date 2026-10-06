@@ -54,7 +54,6 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({ priority }) => {
   if (priority === 'Low') variant = 'neutral';
   if (priority === 'Medium') variant = 'info';
   if (priority === 'High') variant = 'warning';
-  if (priority === 'Urgent') variant = 'error';
 
   return (
     <span className={`badge badge-${variant}`}>

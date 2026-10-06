@@ -3,6 +3,8 @@ import cors from 'cors';
 import { authRouter } from './routes/authRoutes';
 import { userRouter } from './routes/userRoutes';
 import { companyRouter } from './routes/companyRoutes';
+import { contactRouter } from './routes/contactRoutes';
+import { leadRouter } from './routes/leadRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -32,6 +34,8 @@ export function createApp(): express.Application {
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', userRouter);
   app.use('/api/v1/companies', companyRouter);
+  app.use('/api/v1/contacts', contactRouter);
+  app.use('/api/v1/leads', leadRouter);
 
   // 404 Not Found Handler
   app.use((req: Request, res: Response) => {

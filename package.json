@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "tsx server/index.ts",
-    "db:migrate": "tsx server/db/migrate.ts",
-    "test": "tsx --test --test-concurrency=1 server/tests/*.test.ts",
+    "server": "node --experimental-sqlite --import tsx server/index.ts",
+    "db:migrate": "node --experimental-sqlite --import tsx server/db/migrate.ts",
+    "test": "node --experimental-sqlite --import tsx --test --test-concurrency=1 server/tests/*.test.ts",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

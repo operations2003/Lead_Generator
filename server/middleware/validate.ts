@@ -539,3 +539,182 @@ export function validateStageChangeInput(req: Request, res: Response, next: Next
   next();
 }
 
+const VALID_OUTREACH_TYPES = ['Email', 'LinkedIn', 'Phone', 'WhatsApp', 'Demo', 'Other'];
+
+export function validateActivityInput(req: Request, res: Response, next: NextFunction): void {
+  const { leadId, type, notes, activityDate } = req.body;
+
+  if (!leadId || typeof leadId !== 'string' || leadId.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'leadId is required',
+      code: 'MISSING_LEAD_ID',
+    });
+    return;
+  }
+
+  if (!type || typeof type !== 'string' || !VALID_OUTREACH_TYPES.includes(type)) {
+    res.status(400).json({
+      success: false,
+      message: `A valid activity type is required. Must be one of: ${VALID_OUTREACH_TYPES.join(', ')}`,
+      code: 'INVALID_ACTIVITY_TYPE',
+    });
+    return;
+  }
+
+  if (!notes || typeof notes !== 'string' || notes.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Activity notes are required',
+      code: 'MISSING_NOTES',
+    });
+    return;
+  }
+
+  if (activityDate && isNaN(new Date(activityDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'activityDate must be a valid date or timestamp',
+      code: 'INVALID_DATE',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateActivityUpdateInput(req: Request, res: Response, next: NextFunction): void {
+  const { type, notes, activityDate } = req.body;
+
+  if (type !== undefined && (!type || typeof type !== 'string' || !VALID_OUTREACH_TYPES.includes(type))) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid activity type. Must be one of: ${VALID_OUTREACH_TYPES.join(', ')}`,
+      code: 'INVALID_ACTIVITY_TYPE',
+    });
+    return;
+  }
+
+  if (notes !== undefined && (typeof notes !== 'string' || notes.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Activity notes cannot be empty',
+      code: 'INVALID_NOTES',
+    });
+    return;
+  }
+
+  if (activityDate !== undefined && isNaN(new Date(activityDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'activityDate must be a valid date or timestamp',
+      code: 'INVALID_DATE',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateFollowUpInput(req: Request, res: Response, next: NextFunction): void {
+  const { leadId, title, type, dueDate } = req.body;
+
+  if (!leadId || typeof leadId !== 'string' || leadId.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'leadId is required',
+      code: 'MISSING_LEAD_ID',
+    });
+    return;
+  }
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Follow-up title is required',
+      code: 'MISSING_TITLE',
+    });
+    return;
+  }
+
+  if (!type || typeof type !== 'string' || !VALID_OUTREACH_TYPES.includes(type)) {
+    res.status(400).json({
+      success: false,
+      message: `A valid follow-up type is required. Must be one of: ${VALID_OUTREACH_TYPES.join(', ')}`,
+      code: 'INVALID_FOLLOW_UP_TYPE',
+    });
+    return;
+  }
+
+  if (!dueDate || isNaN(new Date(dueDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'A valid dueDate is required',
+      code: 'INVALID_DUE_DATE',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateFollowUpRescheduleInput(req: Request, res: Response, next: NextFunction): void {
+  const { dueDate } = req.body;
+
+  if (!dueDate || isNaN(new Date(dueDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'A valid new dueDate is required',
+      code: 'INVALID_DUE_DATE',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateFollowUpUpdateInput(req: Request, res: Response, next: NextFunction): void {
+  const { title, type, dueDate, status } = req.body;
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Title cannot be empty',
+      code: 'INVALID_TITLE',
+    });
+    return;
+  }
+
+  if (type !== undefined && (!type || typeof type !== 'string' || !VALID_OUTREACH_TYPES.includes(type))) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid follow-up type. Must be one of: ${VALID_OUTREACH_TYPES.join(', ')}`,
+      code: 'INVALID_FOLLOW_UP_TYPE',
+    });
+    return;
+  }
+
+  if (dueDate !== undefined && isNaN(new Date(dueDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid dueDate format',
+      code: 'INVALID_DUE_DATE',
+    });
+    return;
+  }
+
+  if (status !== undefined) {
+    const validStatuses = ['Pending', 'Completed', 'Cancelled'];
+    if (!validStatuses.includes(status)) {
+      res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        code: 'INVALID_STATUS',
+      });
+      return;
+    }
+  }
+
+  next();
+}
+

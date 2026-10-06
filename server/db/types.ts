@@ -164,3 +164,63 @@ export interface LeadWithRelationsRecord extends LeadRecord {
   contact_decision_maker: number | null;
 }
 
+export type ActivityType = 'Email' | 'LinkedIn' | 'Phone' | 'WhatsApp' | 'Demo' | 'Other';
+export type FollowUpStatusType = 'Pending' | 'Completed' | 'Cancelled';
+export type FollowUpComputedStatus = 'Overdue' | 'Due Today' | 'Upcoming' | 'Completed' | 'Cancelled';
+
+export interface ActivityRecord {
+  id: string;
+  lead_id: string;
+  user_id: string;
+  type: ActivityType;
+  subject: string | null;
+  notes: string;
+  activity_date: string;
+  cadence_day: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActivityWithRelationsRecord extends ActivityRecord {
+  user_name: string;
+  user_email: string;
+  lead_title: string;
+  company_name: string;
+  contact_name: string | null;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  lead_id: string;
+  activity_id: string | null;
+  user_id: string;
+  title: string;
+  type: ActivityType;
+  due_date: string;
+  status: FollowUpStatusType;
+  notes: string | null;
+  cadence_day: number | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  rescheduled_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FollowUpWithRelationsRecord extends FollowUpRecord {
+  user_name: string;
+  user_email: string;
+  completed_by_name: string | null;
+  lead_title: string;
+  lead_status: string;
+  lead_priority: string;
+  company_name: string;
+  company_id: string;
+  contact_name: string | null;
+  contact_id: string | null;
+  contact_title: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  computed_status?: FollowUpComputedStatus;
+}
+

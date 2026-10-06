@@ -1,34 +1,46 @@
 import { apiClient } from './client';
-import { ApiResponse, PaginatedResponse } from './types';
-import { FollowUp, FollowUpFilterParams } from '../types';
+import { ApiResponse } from './types';
+import {
+  FollowUp,
+  FollowUpFilterParams,
+  FollowUpsListResponse,
+  FollowUpSummary,
+  CreateFollowUpPayload,
+  UpdateFollowUpPayload,
+} from '../types';
 
-export interface IFollowUpService {
-  getFollowUps(params?: FollowUpFilterParams): Promise<ApiResponse<PaginatedResponse<FollowUp>>>;
-  getFollowUpById(id: string): Promise<ApiResponse<FollowUp>>;
-  createFollowUp(followUp: Omit<FollowUp, 'id' | 'createdAt'>): Promise<ApiResponse<FollowUp>>;
-  updateFollowUp(id: string, followUp: Partial<FollowUp>): Promise<ApiResponse<FollowUp>>;
-  deleteFollowUp(id: string): Promise<ApiResponse<void>>;
-}
+export class FollowUpService {
+  async getFollowUps(params?: FollowUpFilterParams): Promise<ApiResponse<FollowUpsListResponse>> {
+    return apiClient.get<FollowUpsListResponse>('/follow-ups', params as Record<string, unknown>);
+  }
 
-export class FollowUpService implements IFollowUpService {
-  async getFollowUps(params?: FollowUpFilterParams): Promise<ApiResponse<PaginatedResponse<FollowUp>>> {
-    return apiClient.get<PaginatedResponse<FollowUp>>('/follow-ups', params as Record<string, unknown>);
+  async getSummary(leadId?: string): Promise<ApiResponse<FollowUpSummary>> {
+    const query = leadId ? { leadId } : undefined;
+    return apiClient.get<FollowUpSummary>('/follow-ups/summary', query);
   }
 
   async getFollowUpById(id: string): Promise<ApiResponse<FollowUp>> {
     return apiClient.get<FollowUp>(`/follow-ups/${id}`);
   }
 
-  async createFollowUp(followUp: Omit<FollowUp, 'id' | 'createdAt'>): Promise<ApiResponse<FollowUp>> {
-    return apiClient.post<FollowUp>('/follow-ups', followUp);
+  async createFollowUp(payload: CreateFollowUpPayload): Promise<ApiResponse<FollowUp>> {
+    return apiClient.post<FollowUp>('/follow-ups', payload);
   }
 
-  async updateFollowUp(id: string, followUp: Partial<FollowUp>): Promise<ApiResponse<FollowUp>> {
-    return apiClient.put<FollowUp>(`/follow-ups/${id}`, followUp);
+  async completeFollowUp(id: string, notes?: string): Promise<ApiResponse<FollowUp>> {
+    return apiClient.patch<FollowUp>(`/follow-ups/${id}/complete`, { notes });
   }
 
-  async deleteFollowUp(id: string): Promise<ApiResponse<void>> {
-    return apiClient.delete<void>(`/follow-ups/${id}`);
+  async rescheduleFollowUp(id: string, dueDate: string, notes?: string): Promise<ApiResponse<FollowUp>> {
+    return apiClient.patch<FollowUp>(`/follow-ups/${id}/reschedule`, { dueDate, notes });
+  }
+
+  async updateFollowUp(id: string, payload: UpdateFollowUpPayload): Promise<ApiResponse<FollowUp>> {
+    return apiClient.patch<FollowUp>(`/follow-ups/${id}`, payload);
+  }
+
+  async deleteFollowUp(id: string): Promise<ApiResponse<{ message: string }>> {
+    return apiClient.delete<{ message: string }>(`/follow-ups/${id}`);
   }
 }
 

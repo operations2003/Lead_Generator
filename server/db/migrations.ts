@@ -312,6 +312,74 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: '006_outreach_and_follow_ups',
+    name: 'Create outreach activities and follow-ups tables with lead & user relations, types, and indexes',
+    up: (db: DatabaseSync) => {
+      // 1. Outreach Activities Table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS activities (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('Email', 'LinkedIn', 'Phone', 'WhatsApp', 'Demo', 'Other')),
+          subject TEXT,
+          notes TEXT NOT NULL,
+          activity_date TEXT NOT NULL,
+          cadence_day INTEGER,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `);
+
+      // 2. Activities Indexes (Lead, Activity Type, Activity Date)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_activities_lead_id ON activities(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+        CREATE INDEX IF NOT EXISTS idx_activities_activity_date ON activities(activity_date);
+        CREATE INDEX IF NOT EXISTS idx_activities_lead_date ON activities(lead_id, activity_date DESC);
+      `);
+
+      // 3. Follow-ups Table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS follow_ups (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL,
+          activity_id TEXT,
+          user_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('Email', 'LinkedIn', 'Phone', 'WhatsApp', 'Demo', 'Other')),
+          due_date TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Completed', 'Cancelled')),
+          notes TEXT,
+          cadence_day INTEGER,
+          completed_at TEXT,
+          completed_by TEXT,
+          rescheduled_count INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+          FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE SET NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+      `);
+
+      // 4. Follow-ups Indexes (Lead, Follow-up date, Completion status, Activity type)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_id ON follow_ups(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_user_id ON follow_ups(user_id);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_due_date ON follow_ups(due_date);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_status ON follow_ups(status);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_type ON follow_ups(type);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_status_due_date ON follow_ups(status, due_date);
+        CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_status ON follow_ups(lead_id, status);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): { applied: string[]; total: number } {
@@ -1020,5 +1088,181 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
     } catch {
       // Table might not exist yet during initial dry migration runs
     }
+  }
+
+  // Seed Outreach Activities and Follow-ups
+  try {
+    const now = new Date();
+    const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+    const todayStr = formatYMD(now);
+    const twoDaysAgo = formatYMD(new Date(now.getTime() - 2 * 86400000));
+    const fiveDaysAgo = formatYMD(new Date(now.getTime() - 5 * 86400000));
+    const threeDaysLater = formatYMD(new Date(now.getTime() + 3 * 86400000));
+    const tenDaysLater = formatYMD(new Date(now.getTime() + 10 * 86400000));
+
+    const insertActivityStmt = db.prepare(`
+      INSERT INTO activities (id, lead_id, user_id, type, subject, notes, activity_date, cadence_day, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET
+        subject = excluded.subject,
+        notes = excluded.notes,
+        activity_date = excluded.activity_date,
+        cadence_day = excluded.cadence_day,
+        updated_at = datetime('now')
+    `);
+
+    const seedActivities = [
+      {
+        id: 'act_001',
+        lead_id: 'ld_001',
+        user_id: 'usr_sales_001',
+        type: 'Email',
+        subject: 'Day 1: Modernizing IT Staffing & Cloud Assessment',
+        notes: 'Sent personalized outreach email to Elena Rostova detailing Higher IQ cloud assessment capabilities.',
+        activity_date: `${fiveDaysAgo}T09:30:00Z`,
+        cadence_day: 1,
+      },
+      {
+        id: 'act_002',
+        lead_id: 'ld_001',
+        user_id: 'usr_sales_001',
+        type: 'LinkedIn',
+        subject: 'Day 3: LinkedIn Connection with Elena',
+        notes: 'Sent LinkedIn connection request referencing Tuesday email regarding AWS architect screening bottlenecks.',
+        activity_date: `${twoDaysAgo}T14:15:00Z`,
+        cadence_day: 3,
+      },
+      {
+        id: 'act_003',
+        lead_id: 'ld_002',
+        user_id: 'usr_sales_001',
+        type: 'Email',
+        subject: 'Day 1: FinPulse HRMS Compliance Optimization',
+        notes: 'Initial email sent to Marcus Vance regarding automated employee onboarding and SOC2 compliance.',
+        activity_date: `${fiveDaysAgo}T11:00:00Z`,
+        cadence_day: 1,
+      },
+      {
+        id: 'act_004',
+        lead_id: 'ld_003',
+        user_id: 'usr_sales_001',
+        type: 'Phone',
+        subject: 'Day 6: Alignment Discovery Call',
+        notes: 'Quick discovery call with Priya Sharma regarding high hiring volume in Q4 and manual screening.',
+        activity_date: `${todayStr}T10:00:00Z`,
+        cadence_day: 6,
+      },
+    ];
+
+    for (const act of seedActivities) {
+      insertActivityStmt.run(act.id, act.lead_id, act.user_id, act.type, act.subject, act.notes, act.activity_date, act.cadence_day);
+    }
+
+    const insertFollowUpStmt = db.prepare(`
+      INSERT INTO follow_ups (
+        id, lead_id, activity_id, user_id, title, type, due_date, status, notes,
+        cadence_day, completed_at, completed_by, rescheduled_count, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        type = excluded.type,
+        due_date = excluded.due_date,
+        status = excluded.status,
+        notes = excluded.notes,
+        cadence_day = excluded.cadence_day,
+        completed_at = excluded.completed_at,
+        completed_by = excluded.completed_by,
+        rescheduled_count = excluded.rescheduled_count,
+        updated_at = datetime('now')
+    `);
+
+    const seedFollowUps = [
+      {
+        id: 'flw_001',
+        lead_id: 'ld_001',
+        activity_id: 'act_002',
+        user_id: 'usr_sales_001',
+        title: 'Day 6: Alignment Discovery Call',
+        type: 'Phone',
+        due_date: todayStr,
+        status: 'Pending',
+        notes: 'Call Elena Rostova to discuss cloud assessment demo.',
+        cadence_day: 6,
+        completed_at: null,
+        completed_by: null,
+        rescheduled_count: 0,
+      },
+      {
+        id: 'flw_002',
+        lead_id: 'ld_002',
+        activity_id: 'act_003',
+        user_id: 'usr_sales_001',
+        title: 'Day 3: LinkedIn Connection & Note',
+        type: 'LinkedIn',
+        due_date: twoDaysAgo,
+        status: 'Pending',
+        notes: 'Follow up on LinkedIn if email remains unopened.',
+        cadence_day: 3,
+        completed_at: null,
+        completed_by: null,
+        rescheduled_count: 0,
+      },
+      {
+        id: 'flw_003',
+        lead_id: 'ld_003',
+        activity_id: 'act_004',
+        user_id: 'usr_sales_001',
+        title: 'Day 10: Value Case Study Email',
+        type: 'Email',
+        due_date: threeDaysLater,
+        status: 'Pending',
+        notes: 'Send retail sector engineering recruitment case study.',
+        cadence_day: 10,
+        completed_at: null,
+        completed_by: null,
+        rescheduled_count: 0,
+      },
+      {
+        id: 'flw_004',
+        lead_id: 'ld_006',
+        activity_id: null,
+        user_id: 'usr_admin_001',
+        title: 'Day 15: Final Follow-up / Break-up Note',
+        type: 'Email',
+        due_date: tenDaysLater,
+        status: 'Pending',
+        notes: 'Final note to CTO Dr. Aris Thorne before closing pipeline cycle.',
+        cadence_day: 15,
+        completed_at: null,
+        completed_by: null,
+        rescheduled_count: 0,
+      },
+      {
+        id: 'flw_005',
+        lead_id: 'ld_001',
+        activity_id: 'act_001',
+        user_id: 'usr_sales_001',
+        title: 'Day 1: Send Initial Value Pitch',
+        type: 'Email',
+        due_date: fiveDaysAgo,
+        status: 'Completed',
+        notes: 'Delivered pitch deck successfully.',
+        cadence_day: 1,
+        completed_at: `${fiveDaysAgo}T16:00:00Z`,
+        completed_by: 'usr_sales_001',
+        rescheduled_count: 0,
+      },
+    ];
+
+    for (const flw of seedFollowUps) {
+      insertFollowUpStmt.run(
+        flw.id, flw.lead_id, flw.activity_id, flw.user_id, flw.title,
+        flw.type, flw.due_date, flw.status, flw.notes, flw.cadence_day,
+        flw.completed_at, flw.completed_by, flw.rescheduled_count
+      );
+    }
+  } catch (err) {
+    console.error('Error seeding activities and follow-ups:', err);
   }
 }

@@ -3,6 +3,7 @@ export * from './client';
 export * from './companyService';
 export * from './contactService';
 export * from './leadService';
+export * from './activityService';
 export * from './followUpService';
 export * from './campaignService';
 export * from './reportService';

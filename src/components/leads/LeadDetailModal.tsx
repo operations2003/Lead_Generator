@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Lead } from '../../types';
+import { LeadActivityTimeline } from '../outreach/LeadActivityTimeline';
 import {
   Building2,
   Mail,
@@ -633,6 +634,23 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             onChange={(e) => setNotesText(e.target.value)}
             placeholder="Add deal context, discovery feedback, next meeting notes..."
             style={{ resize: 'vertical' }}
+          />
+        </div>
+
+        {/* SECTION: OUTREACH & 15-DAY CADENCE ACTIVITY TIMELINE */}
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '10px',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <LeadActivityTimeline
+            leadId={lead.id}
+            leadTitle={lead.title}
+            companyName={lead.companyName}
+            contactName={lead.contactName || undefined}
           />
         </div>
 

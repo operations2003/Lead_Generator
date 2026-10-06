@@ -5,6 +5,8 @@ import { userRouter } from './routes/userRoutes';
 import { companyRouter } from './routes/companyRoutes';
 import { contactRouter } from './routes/contactRoutes';
 import { leadRouter } from './routes/leadRoutes';
+import { activityRouter } from './routes/activityRoutes';
+import { followUpRouter } from './routes/followUpRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -36,6 +38,8 @@ export function createApp(): express.Application {
   app.use('/api/v1/companies', companyRouter);
   app.use('/api/v1/contacts', contactRouter);
   app.use('/api/v1/leads', leadRouter);
+  app.use('/api/v1/activities', activityRouter);
+  app.use('/api/v1/follow-ups', followUpRouter);
 
   // 404 Not Found Handler
   app.use((req: Request, res: Response) => {

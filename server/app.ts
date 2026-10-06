@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { authRouter } from './routes/authRoutes';
 import { userRouter } from './routes/userRoutes';
+import { companyRouter } from './routes/companyRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp(): express.Application {
   // API Routes
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', userRouter);
+  app.use('/api/v1/companies', companyRouter);
 
   // 404 Not Found Handler
   app.use((req: Request, res: Response) => {

@@ -52,3 +52,52 @@ export interface SafeUser {
   lastLoginAt: string | null;
   createdAt: string;
 }
+
+export interface CompanyRecord {
+  id: string;
+  name: string;
+  normalized_name: string;
+  website: string;
+  normalized_domain: string;
+  industry: string;
+  location: string;
+  employee_size: string;
+  employee_count: number;
+  hiring_signals: string | null;
+  current_tools: string | null;
+  product_fit: 'High' | 'Medium' | 'Low';
+  lead_relevance_score: number;
+  notes: string | null;
+  status: 'Prospect' | 'Researching' | 'Contacted' | 'Qualified' | 'Customer' | 'Archived' | 'Unqualified';
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactRecord {
+  id: string;
+  company_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  title: string | null;
+  department: string | null;
+  decision_maker: number;
+  linkedin_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadRecord {
+  id: string;
+  company_id: string;
+  contact_id: string | null;
+  title: string;
+  value: number;
+  status: string;
+  priority: string;
+  source: string | null;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+}

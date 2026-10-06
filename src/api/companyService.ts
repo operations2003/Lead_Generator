@@ -1,13 +1,14 @@
 import { apiClient } from './client';
 import { ApiResponse, PaginatedResponse } from './types';
-import { Company, CompanyFilterParams } from '../types';
+import { Company, CompanyFilterParams, CreateCompanyPayload, UpdateCompanyPayload } from '../types';
 
 export interface ICompanyService {
   getCompanies(params?: CompanyFilterParams): Promise<ApiResponse<PaginatedResponse<Company>>>;
   getCompanyById(id: string): Promise<ApiResponse<Company>>;
-  createCompany(company: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Company>>;
-  updateCompany(id: string, company: Partial<Company>): Promise<ApiResponse<Company>>;
-  deleteCompany(id: string): Promise<ApiResponse<void>>;
+  createCompany(company: CreateCompanyPayload): Promise<ApiResponse<Company>>;
+  updateCompany(id: string, company: UpdateCompanyPayload): Promise<ApiResponse<Company>>;
+  deleteCompany(id: string, permanent?: boolean): Promise<ApiResponse<{ message: string }>>;
+  archiveCompany(id: string): Promise<ApiResponse<Company>>;
 }
 
 export class CompanyService implements ICompanyService {
@@ -19,17 +20,23 @@ export class CompanyService implements ICompanyService {
     return apiClient.get<Company>(`/companies/${id}`);
   }
 
-  async createCompany(company: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Company>> {
+  async createCompany(company: CreateCompanyPayload): Promise<ApiResponse<Company>> {
     return apiClient.post<Company>('/companies', company);
   }
 
-  async updateCompany(id: string, company: Partial<Company>): Promise<ApiResponse<Company>> {
-    return apiClient.put<Company>(`/companies/${id}`, company);
+  async updateCompany(id: string, company: UpdateCompanyPayload): Promise<ApiResponse<Company>> {
+    return apiClient.patch<Company>(`/companies/${id}`, company);
   }
 
-  async deleteCompany(id: string): Promise<ApiResponse<void>> {
-    return apiClient.delete<void>(`/companies/${id}`);
+  async deleteCompany(id: string, permanent = false): Promise<ApiResponse<{ message: string }>> {
+    const query = permanent ? '?permanent=true' : '';
+    return apiClient.delete<{ message: string }>(`/companies/${id}${query}`);
+  }
+
+  async archiveCompany(id: string): Promise<ApiResponse<Company>> {
+    return this.updateCompany(id, { status: 'Archived' });
   }
 }
 
 export const companyService = new CompanyService();
+

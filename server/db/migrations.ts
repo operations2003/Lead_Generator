@@ -380,6 +380,310 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: '007_campaigns_templates_reporting',
+    name: 'Add campaigns, outreach templates, weekly targets, referral tracking, and campaign metrics',
+    up: (db: DatabaseSync) => {
+      // 1. Create campaigns table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          product TEXT NOT NULL,
+          target_audience TEXT,
+          industry TEXT,
+          location TEXT,
+          lead_source TEXT,
+          start_date TEXT NOT NULL,
+          end_date TEXT,
+          status TEXT NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Active', 'Paused', 'Completed', 'Archived')),
+          assigned_user_id TEXT,
+          notes TEXT,
+          created_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+      `);
+
+      // 2. Indexes for campaigns
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_campaigns_name ON campaigns(name);
+        CREATE INDEX IF NOT EXISTS idx_campaigns_product ON campaigns(product);
+        CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+        CREATE INDEX IF NOT EXISTS idx_campaigns_lead_source ON campaigns(lead_source);
+        CREATE INDEX IF NOT EXISTS idx_campaigns_assigned_user ON campaigns(assigned_user_id);
+        CREATE INDEX IF NOT EXISTS idx_campaigns_dates ON campaigns(start_date, end_date);
+      `);
+
+      // 3. Extend leads table with campaign connection, referral/partner fields, and ATS score
+      const leadTableInfo = db.prepare("PRAGMA table_info(leads)").all() as unknown as { name: string }[];
+      const leadCols = new Set(leadTableInfo.map((c) => c.name));
+
+      if (!leadCols.has('campaign_id')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL;`);
+      }
+      if (!leadCols.has('referrer_name')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN referrer_name TEXT;`);
+      }
+      if (!leadCols.has('referrer_contact')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN referrer_contact TEXT;`);
+      }
+      if (!leadCols.has('partner_name')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN partner_name TEXT;`);
+      }
+      if (!leadCols.has('referral_notes')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN referral_notes TEXT;`);
+      }
+      if (!leadCols.has('ats_score')) {
+        db.exec(`ALTER TABLE leads ADD COLUMN ats_score REAL;`);
+      }
+
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_leads_campaign_id ON leads(campaign_id);
+        CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
+        CREATE INDEX IF NOT EXISTS idx_leads_partner_name ON leads(partner_name);
+      `);
+
+      // 4. Outreach templates table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS outreach_templates (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('Initial Email', 'LinkedIn Message', 'Follow-up Email', 'Call Script', 'WhatsApp Message', 'Demo Follow-up', 'Final Follow-up', 'Email', 'LinkedIn', 'Phone', 'WhatsApp', 'Other')),
+          product TEXT NOT NULL DEFAULT 'Both',
+          subject TEXT,
+          body TEXT NOT NULL,
+          sequence_day INTEGER,
+          created_by TEXT,
+          updated_by TEXT,
+          status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Archived')),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+      `);
+
+      // 5. Indexes for outreach templates
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_templates_type ON outreach_templates(type);
+        CREATE INDEX IF NOT EXISTS idx_templates_product ON outreach_templates(product);
+        CREATE INDEX IF NOT EXISTS idx_templates_status ON outreach_templates(status);
+      `);
+
+      // 6. Weekly targets table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS weekly_targets (
+          id TEXT PRIMARY KEY,
+          target_type TEXT NOT NULL CHECK (target_type IN ('companies', 'contacts', 'outreach', 'replies', 'demos')),
+          target_value INTEGER NOT NULL CHECK (target_value >= 0),
+          user_id TEXT,
+          start_date TEXT NOT NULL,
+          end_date TEXT NOT NULL,
+          created_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+      `);
+
+      // 7. Indexes for weekly targets
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_weekly_targets_type ON weekly_targets(target_type);
+        CREATE INDEX IF NOT EXISTS idx_weekly_targets_user ON weekly_targets(user_id);
+        CREATE INDEX IF NOT EXISTS idx_weekly_targets_dates ON weekly_targets(start_date, end_date);
+      `);
+
+      // 8. Seed Default 15-Day Cadence Templates & Channel Scripts
+      const templateCount = db.prepare('SELECT COUNT(*) as count FROM outreach_templates').get() as { count: number };
+      if (templateCount.count === 0) {
+        const templatesToSeed = [
+          {
+            id: 'tmpl-day1-email-hireiq',
+            name: 'Day 1 — Initial Email (HireIQ ATS)',
+            type: 'Initial Email',
+            product: 'HireIQ',
+            subject: 'Transforming technical screening & talent turnaround for {{company}}',
+            body: `Hi {{firstName}},\n\nI noticed {{company}} has active technical requisitions and high hiring volume across engineering roles.\n\nHireIQ helps scaling teams automate resume ranking and conduct structured AI assessments, cutting candidate drop-off by 42%.\n\nWould you be open to a 10-minute walkthrough this week to benchmark your candidate pipeline?\n\nBest regards,\n{{senderName}}`,
+            sequence_day: 1,
+          },
+          {
+            id: 'tmpl-day1-email-hrms',
+            name: 'Day 1 — Initial Email (HRMS Portal)',
+            type: 'Initial Email',
+            product: 'HRMS',
+            subject: 'Eliminating manual HR & payroll bottlenecks at {{company}}',
+            body: `Hi {{firstName}},\n\nManaging distributed employee onboarding, attendance, and payroll compliance usually creates friction as organizations scale beyond 50 team members.\n\nOur unified HRMS portal replaces fragmented spreadsheets with automated self-service, real-time leaves, and compliant payroll runs.\n\nCould we explore whether this fits {{company}}'s Q4 operational goals?\n\nBest regards,\n{{senderName}}`,
+            sequence_day: 1,
+          },
+          {
+            id: 'tmpl-day3-linkedin',
+            name: 'Day 3 — LinkedIn InMail Touch',
+            type: 'LinkedIn Message',
+            product: 'Both',
+            subject: 'Connecting regarding talent systems at {{company}}',
+            body: `Hi {{firstName}},\n\nFollowing up on my note regarding {{company}}'s hiring and talent operations. Would love to share our benchmark data on how peers in {{industry}} reduced screening overhead by 40%.\n\nLet's connect!\n{{senderName}}`,
+            sequence_day: 3,
+          },
+          {
+            id: 'tmpl-day6-phone',
+            name: 'Day 6 — Phone Discovery Script',
+            type: 'Call Script',
+            product: 'Both',
+            subject: 'Discovery Call Script',
+            body: `[Greeting & Hook]\n"Hello {{firstName}}, this is {{senderName}} from NexusIT. I'm reaching out because I saw {{company}} is actively expanding your team."\n\n[Pain Check]\n"Are you currently handling technical screening and applicant sorting in-house, or are recruiters spending hours sifting through unqualified resumes?"\n\n[Value Hook]\n"Our platform automates instant skill scoring and candidate screening so your hiring managers only interview verified matches."\n\n[Call to Action]\n"Could we put 15 minutes on the calendar this Thursday for a live demo?"`,
+            sequence_day: 6,
+          },
+          {
+            id: 'tmpl-day10-email',
+            name: 'Day 10 — Follow-up Email (Case Study & ROI)',
+            type: 'Follow-up Email',
+            product: 'Both',
+            subject: 'Quick question regarding hiring workflow at {{company}}',
+            body: `Hi {{firstName}},\n\nWanted to float this back up in your inbox. When fast-growing tech teams scale, recruiting bottlenecks cost an average of $4,200 per delayed hire.\n\nWe helped a peer in {{industry}} streamline 350+ monthly applications down to top-5 candidates within 48 hours.\n\nWould you have 10 minutes next Tuesday or Wednesday for a quick look?\n\nBest,\n{{senderName}}`,
+            sequence_day: 10,
+          },
+          {
+            id: 'tmpl-day15-final',
+            name: 'Day 15 — Final Polite Break-up Follow-up',
+            type: 'Final Follow-up',
+            product: 'Both',
+            subject: 'Permission to close file for {{company}}?',
+            body: `Hi {{firstName}},\n\nI haven't heard back, so I assume talent automation is not a priority for {{company}} at this moment.\n\nI won't continue cluttering your inbox. If hiring velocity or HR operational efficiency ever becomes a focus down the road, feel free to reach back out.\n\nWishing you and the team continued success!\n\nBest regards,\n{{senderName}}`,
+            sequence_day: 15,
+          },
+          {
+            id: 'tmpl-whatsapp',
+            name: 'WhatsApp Quick Outreach Touch',
+            type: 'WhatsApp Message',
+            product: 'Both',
+            subject: null,
+            body: `Hi {{firstName}}, hope you are having a productive week! Reaching out from NexusIT regarding {{company}}'s hiring workflow. We recently released a Free ATS Score Checker for engineering candidates. Let me know if you would like me to send over the link!`,
+            sequence_day: null,
+          },
+          {
+            id: 'tmpl-demo-followup',
+            name: 'Demo Follow-up & Next Steps',
+            type: 'Demo Follow-up',
+            product: 'Both',
+            subject: 'Next steps & recap from our demo for {{company}}',
+            body: `Hi {{firstName}},\n\nThank you for taking the time to review our platform today. As discussed, here is a summary of how we address your key requirements:\n\n1. Automated candidate matching and ATS scoring\n2. Real-time HR dashboard and pipeline traceability\n3. Smooth API integration with existing tools\n\nI have attached our pricing proposal and trial onboarding steps. Let's touch base on {{nextFollowUpDate}} to finalize pilot access.\n\nBest regards,\n{{senderName}}`,
+            sequence_day: null,
+          },
+        ];
+
+        const insertTmpl = db.prepare(`
+          INSERT INTO outreach_templates (id, name, type, product, subject, body, sequence_day, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
+        `);
+
+        for (const tmpl of templatesToSeed) {
+          insertTmpl.run(tmpl.id, tmpl.name, tmpl.type, tmpl.product, tmpl.subject, tmpl.body, tmpl.sequence_day);
+        }
+      }
+
+      // 9. Seed Sample Campaigns & Link Existing Leads
+      const campaignCount = db.prepare('SELECT COUNT(*) as count FROM campaigns').get() as { count: number };
+      if (campaignCount.count === 0) {
+        const seedCampaigns = [
+          {
+            id: 'cmp-q4-hiring-drive',
+            name: 'Q4 High-Growth Tech Hiring Drive',
+            product: 'HireIQ',
+            target_audience: 'Talent Acquisition Heads & VP Engineering',
+            industry: 'IT & Cloud Services',
+            location: 'Bangalore / Remote',
+            lead_source: 'LinkedIn',
+            start_date: '2026-10-01',
+            end_date: '2026-12-31',
+            status: 'Active',
+            notes: 'Targeting scaling SaaS and fintech companies actively recruiting 10+ developers.',
+          },
+          {
+            id: 'cmp-hrms-automation-2026',
+            name: 'HRMS Modernization & Compliance 2026',
+            product: 'HRMS',
+            target_audience: 'HR Directors & CFOs',
+            industry: 'FinTech & Banking',
+            location: 'Mumbai & Delhi NCR',
+            lead_source: 'Website',
+            start_date: '2026-09-15',
+            end_date: '2026-11-30',
+            status: 'Active',
+            notes: 'Outreach campaign focused on payroll automation and compliance.',
+          },
+          {
+            id: 'cmp-free-ats-score-inbound',
+            name: 'Free ATS Score Check Inbound Campaign',
+            product: 'HireIQ',
+            target_audience: 'Recruiting Managers & HR Operations',
+            industry: 'Cross-Industry',
+            location: 'Pan-India',
+            lead_source: 'Free ATS Score Check',
+            start_date: '2026-10-05',
+            end_date: '2026-12-31',
+            status: 'Active',
+            notes: 'Inbound lead capture offering candidate resume optimization and automated ATS score analysis.',
+          },
+        ];
+
+        const insertCmp = db.prepare(`
+          INSERT INTO campaigns (id, name, product, target_audience, industry, location, lead_source, start_date, end_date, status, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        for (const c of seedCampaigns) {
+          insertCmp.run(c.id, c.name, c.product, c.target_audience, c.industry, c.location, c.lead_source, c.start_date, c.end_date, c.status, c.notes);
+        }
+
+        // Link existing leads to sample campaigns for real metric calculations
+        db.exec(`
+          UPDATE leads SET campaign_id = 'cmp-q4-hiring-drive', source = 'LinkedIn'
+          WHERE product = 'Higher IQ' AND campaign_id IS NULL;
+
+          UPDATE leads SET campaign_id = 'cmp-hrms-automation-2026', source = 'Website'
+          WHERE product = 'HRMS Portal' AND campaign_id IS NULL;
+        `);
+      }
+
+      // 10. Seed Default Weekly Targets
+      const targetCount = db.prepare('SELECT COUNT(*) as count FROM weekly_targets').get() as { count: number };
+      if (targetCount.count === 0) {
+        // Calculate current week start (Monday) and end (Sunday)
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + diffToMon);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        const startStr = monday.toISOString().split('T')[0];
+        const endStr = sunday.toISOString().split('T')[0];
+
+        const defaultTargets = [
+          { type: 'companies', value: 25 },
+          { type: 'contacts', value: 50 },
+          { type: 'outreach', value: 75 },
+          { type: 'replies', value: 20 },
+          { type: 'demos', value: 8 },
+        ];
+
+        const insertTarget = db.prepare(`
+          INSERT INTO weekly_targets (id, target_type, target_value, user_id, start_date, end_date)
+          VALUES (?, ?, ?, NULL, ?, ?)
+        `);
+
+        let targetIdx = 1;
+        for (const t of defaultTargets) {
+          insertTarget.run(`wt-default-${targetIdx++}`, t.type, t.value, startStr, endStr);
+        }
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): { applied: string[]; total: number } {

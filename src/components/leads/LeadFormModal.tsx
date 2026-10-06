@@ -9,8 +9,11 @@ import {
   Company,
   Contact,
   QualificationPreviewResult,
+  LEAD_SOURCES,
+  LeadSource,
+  Campaign,
 } from '../../types';
-import { companyService, contactService, leadService } from '../../api';
+import { companyService, contactService, leadService, campaignService } from '../../api';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -72,7 +75,13 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
   const [title, setTitle] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [contactId, setContactId] = useState<string>('');
+  const [campaignId, setCampaignId] = useState<string>('');
   const [product, setProduct] = useState<ProductType>('Higher IQ');
+  const [source, setSource] = useState<LeadSource>('LinkedIn');
+  const [referrerName, setReferrerName] = useState('');
+  const [partnerName, setPartnerName] = useState('');
+  const [referralNotes, setReferralNotes] = useState('');
+  const [atsScore, setAtsScore] = useState<number | undefined>(undefined);
   const [value, setValue] = useState<number>(50000);
   const [status, setStatus] = useState<LeadStatus>('New');
   const [requestedPriority, setRequestedPriority] = useState<LeadPriority>('High');
@@ -91,8 +100,10 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
   // Async dropdown data
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyContacts, setCompanyContacts] = useState<Contact[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
 
   // Live Backend Qualification Preview
   const [preview, setPreview] = useState<QualificationPreviewResult | null>(null);
@@ -119,7 +130,13 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
       setTitle(leadToEdit.title);
       setCompanyId(leadToEdit.companyId);
       setContactId(leadToEdit.contactId || '');
+      setCampaignId(leadToEdit.campaignId || '');
       setProduct(leadToEdit.product);
+      setSource((leadToEdit.source as LeadSource) || 'LinkedIn');
+      setReferrerName(leadToEdit.referrerName || '');
+      setPartnerName(leadToEdit.partnerName || '');
+      setReferralNotes(leadToEdit.referralNotes || '');
+      setAtsScore(leadToEdit.atsScore ?? undefined);
       setValue(leadToEdit.value || 0);
       setStatus(leadToEdit.status);
       setRequestedPriority(leadToEdit.priority);
@@ -139,7 +156,13 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
       setTitle('Enterprise Automation & Workforce Onboarding');
       setCompanyId(defaultComp);
       setContactId(initialContactId || '');
+      setCampaignId('');
       setProduct('Higher IQ');
+      setSource('LinkedIn');
+      setReferrerName('');
+      setPartnerName('');
+      setReferralNotes('');
+      setAtsScore(undefined);
       setValue(75000);
       setStatus('New');
       setRequestedPriority('High');
@@ -156,6 +179,21 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
       setError(null);
     }
   }, [isOpen, leadToEdit, initialCompanyId, initialContactId]);
+
+  // Load Campaigns list
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingCampaigns(true);
+    campaignService
+      .getCampaigns({ limit: 100 })
+      .then((res) => {
+        if (res.data?.items) {
+          setCampaigns(res.data.items);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCampaigns(false));
+  }, [isOpen]);
 
   // Load Companies list
   useEffect(() => {
@@ -310,7 +348,13 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
       const payload: CreateLeadPayload = {
         companyId,
         contactId: contactId || null,
+        campaignId: campaignId || null,
         product,
+        source,
+        referrerName: (source === 'Referral' || source === 'Partner') && referrerName.trim() ? referrerName.trim() : null,
+        partnerName: (source === 'Referral' || source === 'Partner') && partnerName.trim() ? partnerName.trim() : null,
+        referralNotes: (source === 'Referral' || source === 'Partner') && referralNotes.trim() ? referralNotes.trim() : null,
+        atsScore: source === 'Free ATS Score Check' && atsScore !== undefined ? atsScore : null,
         title: title.trim(),
         value: Number(value) || 0,
         status,
@@ -533,6 +577,92 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
                 {product === 'Both' && 'Integrated Talent Suite & Core HR Infrastructure'}
               </div>
             </div>
+
+            {/* Campaign Association */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '4px' }}>
+                Outreach Campaign {loadingCampaigns && <Loader2 size={12} className="spin" style={{ display: 'inline', marginLeft: 4 }} />}
+              </label>
+              <select
+                className="input"
+                value={campaignId}
+                onChange={(e) => setCampaignId(e.target.value)}
+              >
+                <option value="">-- No Campaign Attached (Direct / Organic) --</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.product} - {c.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Lead Source */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '4px' }}>
+                Lead Acquisition Source *
+              </label>
+              <select
+                className="input"
+                value={source}
+                onChange={(e) => setSource(e.target.value as LeadSource)}
+                required
+              >
+                {LEAD_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Conditional ATS Score Input */}
+            {source === 'Free ATS Score Check' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '4px' }}>
+                  ATS Score Result (0 - 100)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="input"
+                  value={atsScore !== undefined ? atsScore : ''}
+                  onChange={(e) => setAtsScore(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="e.g. 85"
+                />
+              </div>
+            )}
+
+            {/* Conditional Referral / Partner Fields */}
+            {(source === 'Referral' || source === 'Partner') && (
+              <>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '4px' }}>
+                    {source === 'Referral' ? 'Referrer Person Name' : 'Channel Partner / Agency Name'}
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={source === 'Referral' ? referrerName : partnerName}
+                    onChange={(e) => (source === 'Referral' ? setReferrerName(e.target.value) : setPartnerName(e.target.value))}
+                    placeholder={source === 'Referral' ? 'e.g. Priya Sharma (VP HR at Zylker)' : 'e.g. CloudTech Solutions Partner'}
+                  />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '4px' }}>
+                    Referral / Partnership Context Notes
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={referralNotes}
+                    onChange={(e) => setReferralNotes(e.target.value)}
+                    placeholder="e.g. Referred via Q3 IT leaders roundtable; warm intro provided"
+                  />
+                </div>
+              </>
+            )}
 
             {/* Est. Deal Value */}
             <div>

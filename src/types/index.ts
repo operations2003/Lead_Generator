@@ -4,5 +4,7 @@ export * from './lead';
 export * from './activity';
 export * from './followUp';
 export * from './campaign';
+export * from './template';
+export * from './reporting';
 export * from './report';
 export * from './auth';

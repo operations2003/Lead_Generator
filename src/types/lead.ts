@@ -51,6 +51,31 @@ export interface QualificationPreviewResult {
   validationReason?: string;
 }
 
+export type LeadSource =
+  | 'LinkedIn'
+  | 'Email'
+  | 'Phone'
+  | 'WhatsApp'
+  | 'Website'
+  | 'Free ATS Score Check'
+  | 'LinkedIn Content'
+  | 'Referral'
+  | 'Partner'
+  | 'Other';
+
+export const LEAD_SOURCES: LeadSource[] = [
+  'LinkedIn',
+  'Email',
+  'Phone',
+  'WhatsApp',
+  'Website',
+  'Free ATS Score Check',
+  'LinkedIn Content',
+  'Referral',
+  'Partner',
+  'Other',
+];
+
 export interface Lead {
   id: string;
   companyId: string;
@@ -66,6 +91,8 @@ export interface Lead {
   contactEmail: string | null;
   contactPhone: string | null;
   contactDecisionMaker: boolean;
+  campaignId?: string | null;
+  campaignName?: string | null;
   product: ProductType;
   title: string;
   value: number;
@@ -81,6 +108,11 @@ export interface Lead {
   qualificationNotes: string | null;
   notes: string | null;
   source: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo: string | null;
   lostReason?: string | null;
   wonAt?: string | null;
@@ -95,6 +127,7 @@ export interface Lead {
 export interface CreateLeadPayload {
   companyId: string;
   contactId?: string | null;
+  campaignId?: string | null;
   product: ProductType;
   title: string;
   value?: number;
@@ -109,6 +142,11 @@ export interface CreateLeadPayload {
   qualificationNotes?: string | null;
   notes?: string | null;
   source?: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo?: string | null;
   allowDuplicate?: boolean;
 }
@@ -116,6 +154,7 @@ export interface CreateLeadPayload {
 export interface UpdateLeadPayload {
   companyId?: string;
   contactId?: string | null;
+  campaignId?: string | null;
   product?: ProductType;
   title?: string;
   value?: number;
@@ -130,6 +169,11 @@ export interface UpdateLeadPayload {
   qualificationNotes?: string | null;
   notes?: string | null;
   source?: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo?: string | null;
   allowDuplicate?: boolean;
 }
@@ -139,6 +183,8 @@ export interface LeadFilterParams {
   product?: string;
   priority?: string;
   status?: string;
+  campaignId?: string;
+  source?: string;
   companyId?: string;
   contactId?: string;
   minScore?: number;

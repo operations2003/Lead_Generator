@@ -6,5 +6,8 @@ export * from './leadService';
 export * from './activityService';
 export * from './followUpService';
 export * from './campaignService';
+export * from './templateService';
+export * from './targetService';
+export * from './leadCaptureService';
 export * from './reportService';
 export * from './authService';

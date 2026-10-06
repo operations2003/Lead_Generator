@@ -715,6 +715,197 @@ export function validateFollowUpUpdateInput(req: Request, res: Response, next: N
     }
   }
 
+    next();
+}
+
+export const VALID_CAMPAIGN_STATUSES = ['Draft', 'Active', 'Paused', 'Completed', 'Archived'];
+export const VALID_TEMPLATE_TYPES = [
+  'Initial Email',
+  'LinkedIn Message',
+  'Follow-up Email',
+  'Call Script',
+  'WhatsApp Message',
+  'Demo Follow-up',
+  'Final Follow-up',
+  'Email',
+  'LinkedIn',
+  'Phone',
+  'WhatsApp',
+  'Other',
+];
+export const VALID_TARGET_TYPES = ['companies', 'contacts', 'outreach', 'replies', 'demos'];
+
+export function validateCampaignInput(req: Request, res: Response, next: NextFunction): void {
+  const { name, product, startDate, status } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Campaign name is required',
+      code: 'INVALID_CAMPAIGN_NAME',
+    });
+    return;
+  }
+
+  if (!product || typeof product !== 'string' || product.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Product is required (HireIQ, HRMS, or Both)',
+      code: 'INVALID_PRODUCT',
+    });
+    return;
+  }
+
+  if (!startDate || isNaN(new Date(startDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'Valid start date is required (YYYY-MM-DD)',
+      code: 'INVALID_START_DATE',
+    });
+    return;
+  }
+
+  if (status !== undefined && !VALID_CAMPAIGN_STATUSES.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${VALID_CAMPAIGN_STATUSES.join(', ')}`,
+      code: 'INVALID_CAMPAIGN_STATUS',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateCampaignUpdateInput(req: Request, res: Response, next: NextFunction): void {
+  const { name, product, startDate, status } = req.body;
+
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Campaign name cannot be empty',
+      code: 'INVALID_CAMPAIGN_NAME',
+    });
+    return;
+  }
+
+  if (product !== undefined && (typeof product !== 'string' || product.trim().length === 0)) {
+    res.status(400).json({
+      success: false,
+      message: 'Product cannot be empty',
+      code: 'INVALID_PRODUCT',
+    });
+    return;
+  }
+
+  if (startDate !== undefined && isNaN(new Date(startDate).getTime())) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid start date format',
+      code: 'INVALID_START_DATE',
+    });
+    return;
+  }
+
+  if (status !== undefined && !VALID_CAMPAIGN_STATUSES.includes(status)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${VALID_CAMPAIGN_STATUSES.join(', ')}`,
+      code: 'INVALID_CAMPAIGN_STATUS',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateTemplateInput(req: Request, res: Response, next: NextFunction): void {
+  const { name, type, body } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Template name is required',
+      code: 'INVALID_TEMPLATE_NAME',
+    });
+    return;
+  }
+
+  if (!type || typeof type !== 'string' || !VALID_TEMPLATE_TYPES.includes(type)) {
+    res.status(400).json({
+      success: false,
+      message: `Valid template type is required: ${VALID_TEMPLATE_TYPES.join(', ')}`,
+      code: 'INVALID_TEMPLATE_TYPE',
+    });
+    return;
+  }
+
+  if (!body || typeof body !== 'string' || body.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Template body is required',
+      code: 'INVALID_TEMPLATE_BODY',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateWeeklyTargetInput(req: Request, res: Response, next: NextFunction): void {
+  const { targetType, targetValue } = req.body;
+
+  if (!targetType || !VALID_TARGET_TYPES.includes(targetType)) {
+    res.status(400).json({
+      success: false,
+      message: `Valid targetType is required: ${VALID_TARGET_TYPES.join(', ')}`,
+      code: 'INVALID_TARGET_TYPE',
+    });
+    return;
+  }
+
+  if (targetValue === undefined || typeof targetValue !== 'number' || targetValue < 0) {
+    res.status(400).json({
+      success: false,
+      message: 'targetValue must be a non-negative number',
+      code: 'INVALID_TARGET_VALUE',
+    });
+    return;
+  }
+
+  next();
+}
+
+export function validateAtsScoreLeadInput(req: Request, res: Response, next: NextFunction): void {
+  const { fullName, email, companyName } = req.body;
+
+  if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Full name is required',
+      code: 'INVALID_FULL_NAME',
+    });
+    return;
+  }
+
+  if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+    res.status(400).json({
+      success: false,
+      message: 'Valid email address is required',
+      code: 'INVALID_EMAIL',
+    });
+    return;
+  }
+
+  if (!companyName || typeof companyName !== 'string' || companyName.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Company name is required',
+      code: 'INVALID_COMPANY_NAME',
+    });
+    return;
+  }
+
   next();
 }
 

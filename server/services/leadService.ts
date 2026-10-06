@@ -41,6 +41,7 @@ export interface LeadStageHistoryItem {
 export interface CreateLeadInput {
   companyId: string;
   contactId?: string | null;
+  campaignId?: string | null;
   product: ProductType;
   title: string;
   value?: number;
@@ -55,6 +56,11 @@ export interface CreateLeadInput {
   qualificationNotes?: string | null;
   notes?: string | null;
   source?: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo?: string | null;
   allowDuplicate?: boolean;
   lostReason?: string | null;
@@ -63,6 +69,7 @@ export interface CreateLeadInput {
 export interface UpdateLeadInput {
   companyId?: string;
   contactId?: string | null;
+  campaignId?: string | null;
   product?: ProductType;
   title?: string;
   value?: number;
@@ -77,6 +84,11 @@ export interface UpdateLeadInput {
   qualificationNotes?: string | null;
   notes?: string | null;
   source?: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo?: string | null;
   allowDuplicate?: boolean;
   lostReason?: string | null;
@@ -89,6 +101,8 @@ export interface LeadFilterOptions {
   product?: string;
   priority?: string;
   status?: string;
+  campaignId?: string;
+  source?: string;
   companyId?: string;
   contactId?: string;
   minScore?: number;
@@ -119,6 +133,8 @@ export interface LeadDetailResponse {
   contactEmail: string | null;
   contactPhone: string | null;
   contactDecisionMaker: boolean;
+  campaignId?: string | null;
+  campaignName?: string | null;
   product: ProductType;
   title: string;
   value: number;
@@ -134,6 +150,11 @@ export interface LeadDetailResponse {
   qualificationNotes: string | null;
   notes: string | null;
   source: string | null;
+  referrerName?: string | null;
+  referrerContact?: string | null;
+  partnerName?: string | null;
+  referralNotes?: string | null;
+  atsScore?: number | null;
   assignedTo: string | null;
   lostReason: string | null;
   wonAt: string | null;
@@ -180,6 +201,8 @@ export class LeadService {
       contactEmail: row.contact_email,
       contactPhone: row.contact_phone,
       contactDecisionMaker: Boolean(row.contact_decision_maker),
+      campaignId: row.campaign_id || null,
+      campaignName: row.campaign_name || null,
       product: row.product,
       title: row.title,
       value: row.value,
@@ -195,6 +218,11 @@ export class LeadService {
       qualificationNotes: row.qualification_notes,
       notes: row.notes,
       source: row.source,
+      referrerName: row.referrer_name || null,
+      referrerContact: row.referrer_contact || null,
+      partnerName: row.partner_name || null,
+      referralNotes: row.referral_notes || null,
+      atsScore: row.ats_score !== undefined && row.ats_score !== null ? Number(row.ats_score) : null,
       assignedTo: row.assigned_to,
       lostReason: row.lost_reason || null,
       wonAt: row.won_at || null,
@@ -405,18 +433,19 @@ export class LeadService {
 
     const insertStmt = this.db.prepare(`
       INSERT INTO leads (
-        id, company_id, contact_id, product, title, value, status, priority,
+        id, company_id, contact_id, campaign_id, product, title, value, status, priority,
         hiring_volume, hiring_multiple_roles, manual_hr_processes, existing_tools,
         company_size, decision_maker_identified, qualification_score, qualification_notes, notes,
-        source, assigned_to, created_at, updated_at
+        source, referrer_name, referrer_contact, partner_name, referral_notes, ats_score, assigned_to, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `);
 
     insertStmt.run(
       id,
       companyId,
       contactId,
+      input.campaignId || null,
       product,
       title,
       value,
@@ -432,6 +461,11 @@ export class LeadService {
       qualificationNotes,
       notes,
       source,
+      input.referrerName?.trim() || null,
+      input.referrerContact?.trim() || null,
+      input.partnerName?.trim() || null,
+      input.referralNotes?.trim() || null,
+      input.atsScore !== undefined && input.atsScore !== null ? Number(input.atsScore) : null,
       assignedTo
     );
 
@@ -448,19 +482,22 @@ export class LeadService {
     const row = this.db
       .prepare(`
         SELECT 
-          l.id, l.company_id, l.contact_id, l.product, l.title, l.value, l.status, l.priority,
+          l.id, l.company_id, l.contact_id, l.campaign_id, l.product, l.title, l.value, l.status, l.priority,
           l.hiring_volume, l.hiring_multiple_roles, l.manual_hr_processes, l.existing_tools,
           l.company_size, l.decision_maker_identified, l.qualification_score, l.qualification_notes,
-          l.notes, l.source, l.assigned_to, l.lost_reason, l.won_at, l.lost_at, l.stage_changed_at,
+          l.notes, l.source, l.referrer_name, l.referrer_contact, l.partner_name, l.referral_notes, l.ats_score,
+          l.assigned_to, l.lost_reason, l.won_at, l.lost_at, l.stage_changed_at,
           l.created_at, l.updated_at,
           co.name AS company_name, co.website AS company_website, co.normalized_domain AS company_domain,
           co.industry AS company_industry, co.location AS company_location, co.employee_size AS company_employee_size,
           co.product_fit AS company_product_fit,
           cnt.name AS contact_name, cnt.title AS contact_title, cnt.email AS contact_email,
-          cnt.phone AS contact_phone, cnt.decision_maker AS contact_decision_maker
+          cnt.phone AS contact_phone, cnt.decision_maker AS contact_decision_maker,
+          cmp.name AS campaign_name
         FROM leads l
         JOIN companies co ON l.company_id = co.id
         LEFT JOIN contacts cnt ON l.contact_id = cnt.id
+        LEFT JOIN campaigns cmp ON l.campaign_id = cmp.id
         WHERE l.id = ?
       `)
       .get(id) as unknown as LeadWithRelationsRecord | undefined;
@@ -570,6 +607,16 @@ export class LeadService {
       params.push(options.contactId);
     }
 
+    if (options.campaignId) {
+      conditions.push('l.campaign_id = ?');
+      params.push(options.campaignId);
+    }
+
+    if (options.source) {
+      conditions.push('l.source = ?');
+      params.push(options.source);
+    }
+
     if (typeof options.minScore === 'number') {
       conditions.push('l.qualification_score >= ?');
       params.push(options.minScore);
@@ -615,19 +662,22 @@ export class LeadService {
 
     const dataSql = `
       SELECT 
-        l.id, l.company_id, l.contact_id, l.product, l.title, l.value, l.status, l.priority,
+        l.id, l.company_id, l.contact_id, l.campaign_id, l.product, l.title, l.value, l.status, l.priority,
         l.hiring_volume, l.hiring_multiple_roles, l.manual_hr_processes, l.existing_tools,
         l.company_size, l.decision_maker_identified, l.qualification_score, l.qualification_notes,
-        l.notes, l.source, l.assigned_to, l.lost_reason, l.won_at, l.lost_at, l.stage_changed_at,
+        l.notes, l.source, l.referrer_name, l.referrer_contact, l.partner_name, l.referral_notes, l.ats_score,
+        l.assigned_to, l.lost_reason, l.won_at, l.lost_at, l.stage_changed_at,
         l.created_at, l.updated_at,
         co.name AS company_name, co.website AS company_website, co.normalized_domain AS company_domain,
         co.industry AS company_industry, co.location AS company_location, co.employee_size AS company_employee_size,
         co.product_fit AS company_product_fit,
         cnt.name AS contact_name, cnt.title AS contact_title, cnt.email AS contact_email,
-        cnt.phone AS contact_phone, cnt.decision_maker AS contact_decision_maker
+        cnt.phone AS contact_phone, cnt.decision_maker AS contact_decision_maker,
+        cmp.name AS campaign_name
       FROM leads l
       JOIN companies co ON l.company_id = co.id
       LEFT JOIN contacts cnt ON l.contact_id = cnt.id
+      LEFT JOIN campaigns cmp ON l.campaign_id = cmp.id
       ${whereClause}
       ${orderByClause}
       LIMIT ? OFFSET ?
@@ -827,6 +877,30 @@ export class LeadService {
     if (input.source !== undefined) {
       updates.push('source = ?');
       params.push(input.source);
+    }
+    if (input.campaignId !== undefined) {
+      updates.push('campaign_id = ?');
+      params.push(input.campaignId || null);
+    }
+    if (input.referrerName !== undefined) {
+      updates.push('referrer_name = ?');
+      params.push(input.referrerName || null);
+    }
+    if (input.referrerContact !== undefined) {
+      updates.push('referrer_contact = ?');
+      params.push(input.referrerContact || null);
+    }
+    if (input.partnerName !== undefined) {
+      updates.push('partner_name = ?');
+      params.push(input.partnerName || null);
+    }
+    if (input.referralNotes !== undefined) {
+      updates.push('referral_notes = ?');
+      params.push(input.referralNotes || null);
+    }
+    if (input.atsScore !== undefined) {
+      updates.push('ats_score = ?');
+      params.push(input.atsScore !== null ? Number(input.atsScore) : null);
     }
     if (input.assignedTo !== undefined) {
       updates.push('assigned_to = ?');

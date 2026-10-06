@@ -104,3 +104,5 @@ export function requirePermission(...requiredPermissions: string[]) {
     next();
   };
 }
+
+export const requireAuth = authenticateToken;

@@ -121,10 +121,23 @@ export interface LeadStageHistoryRecord {
   created_at: string;
 }
 
+export type LeadSourceType =
+  | 'LinkedIn'
+  | 'Email'
+  | 'Phone'
+  | 'WhatsApp'
+  | 'Website'
+  | 'Free ATS Score Check'
+  | 'LinkedIn Content'
+  | 'Referral'
+  | 'Partner'
+  | 'Other';
+
 export interface LeadRecord {
   id: string;
   company_id: string;
   contact_id: string | null;
+  campaign_id?: string | null;
   product: ProductType;
   title: string;
   value: number;
@@ -140,6 +153,11 @@ export interface LeadRecord {
   qualification_notes: string | null;
   notes: string | null;
   source: string | null;
+  referrer_name?: string | null;
+  referrer_contact?: string | null;
+  partner_name?: string | null;
+  referral_notes?: string | null;
+  ats_score?: number | null;
   assigned_to: string | null;
   lost_reason: string | null;
   won_at: string | null;
@@ -162,6 +180,97 @@ export interface LeadWithRelationsRecord extends LeadRecord {
   contact_email: string | null;
   contact_phone: string | null;
   contact_decision_maker: number | null;
+  campaign_name?: string | null;
+}
+
+export type CampaignStatusType = 'Draft' | 'Active' | 'Paused' | 'Completed' | 'Archived';
+
+export interface CampaignRecord {
+  id: string;
+  name: string;
+  product: string;
+  target_audience: string | null;
+  industry: string | null;
+  location: string | null;
+  lead_source: string | null;
+  start_date: string;
+  end_date: string | null;
+  status: CampaignStatusType;
+  assigned_user_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignWithMetricsRecord extends CampaignRecord {
+  assigned_user_name: string | null;
+  created_by_name: string | null;
+  total_leads: number;
+  new_leads: number;
+  contacted: number;
+  replies: number;
+  demos_booked: number;
+  demos_completed: number;
+  won: number;
+  lost: number;
+  follow_ups_due: number;
+  conversion_rate: number;
+}
+
+export type OutreachTemplateType =
+  | 'Initial Email'
+  | 'LinkedIn Message'
+  | 'Follow-up Email'
+  | 'Call Script'
+  | 'WhatsApp Message'
+  | 'Demo Follow-up'
+  | 'Final Follow-up'
+  | 'Email'
+  | 'LinkedIn'
+  | 'Phone'
+  | 'WhatsApp'
+  | 'Other';
+
+export interface OutreachTemplateRecord {
+  id: string;
+  name: string;
+  type: OutreachTemplateType;
+  product: string;
+  subject: string | null;
+  body: string;
+  sequence_day: number | null;
+  created_by: string | null;
+  updated_by: string | null;
+  status: 'Active' | 'Archived';
+  created_at: string;
+  updated_at: string;
+}
+
+export type WeeklyTargetType = 'companies' | 'contacts' | 'outreach' | 'replies' | 'demos';
+
+export interface WeeklyTargetRecord {
+  id: string;
+  target_type: WeeklyTargetType;
+  target_value: number;
+  user_id: string | null;
+  start_date: string;
+  end_date: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeeklyTargetSummary {
+  id?: string;
+  target_type: WeeklyTargetType;
+  target_value: number;
+  actual_value: number;
+  achievement_rate: number;
+  remaining: number;
+  user_id: string | null;
+  start_date: string;
+  end_date: string;
 }
 
 export type ActivityType = 'Email' | 'LinkedIn' | 'Phone' | 'WhatsApp' | 'Demo' | 'Other';

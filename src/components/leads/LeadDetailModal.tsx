@@ -16,6 +16,7 @@ import {
   Save,
   Loader2,
   Users,
+  Layers,
 } from 'lucide-react';
 
 export interface LeadDetailModalProps {
@@ -512,6 +513,62 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Campaign & Acquisition Attribution Card */}
+          <div
+            style={{
+              padding: '1rem',
+              borderRadius: '10px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+              <Layers size={15} /> Campaign & Acquisition
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8125rem' }}>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Campaign: </span>
+                <strong>{lead.campaignName || 'Direct Outreach / Organic'}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Source: </span>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    color: '#3b82f6',
+                  }}
+                >
+                  {lead.source || 'Other'}
+                </span>
+                {lead.atsScore !== undefined && lead.atsScore !== null && (
+                  <span
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10b981',
+                    }}
+                  >
+                    ATS: {lead.atsScore}/100
+                  </span>
+                )}
+              </div>
+              {(lead.referrerName || lead.partnerName) && (
+                <div style={{ padding: '6px 8px', borderRadius: '6px', backgroundColor: 'var(--bg-subtle, rgba(255,255,255,0.03))', marginTop: '2px', fontSize: '0.75rem' }}>
+                  {lead.referrerName && <div><strong>Referrer:</strong> {lead.referrerName}</div>}
+                  {lead.partnerName && <div><strong>Partner:</strong> {lead.partnerName}</div>}
+                  {lead.referralNotes && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>{lead.referralNotes}</div>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

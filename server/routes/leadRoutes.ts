@@ -115,6 +115,8 @@ leadRouter.get('/', requirePermission('leads:read'), (req: AuthenticatedRequest,
       includeArchived,
       sortBy,
       sortOrder,
+      campaignId,
+      source,
     } = req.query;
 
     const result = leadService.list({
@@ -124,6 +126,8 @@ leadRouter.get('/', requirePermission('leads:read'), (req: AuthenticatedRequest,
       product: product ? String(product) : undefined,
       priority: priority ? String(priority) : undefined,
       status: status ? String(status) : undefined,
+      campaignId: campaignId ? String(campaignId) : undefined,
+      source: source ? String(source) : undefined,
       companyId: companyId ? String(companyId) : undefined,
       contactId: contactId ? String(contactId) : undefined,
       minScore: minScore ? parseInt(String(minScore), 10) : undefined,

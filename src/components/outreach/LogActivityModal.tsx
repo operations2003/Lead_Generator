@@ -4,8 +4,10 @@ import {
   ActivityType,
   CADENCE_STEPS,
   Activity,
+  OutreachTemplate,
 } from '../../types';
 import { activityService } from '../../api';
+import { TemplateSelectorModal } from './TemplateSelectorModal';
 import {
   Mail,
   Linkedin,
@@ -75,6 +77,7 @@ export const LogActivityModal: React.FC<LogActivityModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Quick Cadence preset selector
   const handleSelectCadence = (day: number) => {
@@ -103,6 +106,37 @@ export const LogActivityModal: React.FC<LogActivityModalProps> = ({
     } else {
       setScheduleNext(false);
     }
+  };
+
+  const handleApplyTemplate = (tpl: OutreachTemplate) => {
+    if (tpl.type === 'Email' || tpl.type === 'Initial Email' || tpl.type === 'Follow-up Email' || tpl.type === 'Final Follow-up') {
+      setType('Email');
+    } else if (tpl.type === 'LinkedIn' || tpl.type === 'LinkedIn Message') {
+      setType('LinkedIn');
+    } else if (tpl.type === 'Phone' || tpl.type === 'Call Script') {
+      setType('Phone');
+    } else if (tpl.type === 'WhatsApp' || tpl.type === 'WhatsApp Message') {
+      setType('WhatsApp');
+    } else if (tpl.type === 'Demo Follow-up') {
+      setType('Demo');
+    }
+
+    if (tpl.sequenceDay) {
+      setCadenceDay(tpl.sequenceDay);
+    }
+    if (tpl.subject) {
+      setSubject(tpl.subject);
+    } else {
+      setSubject(tpl.name);
+    }
+    if (tpl.body) {
+      const populated = tpl.body
+        .replace(/{{contact_name}}/g, contactName || 'there')
+        .replace(/{{company_name}}/g, companyName || 'your company')
+        .replace(/{{sender_name}}/g, 'Our Team');
+      setNotes(populated);
+    }
+    setShowTemplateModal(false);
   };
 
   const handleAddDays = (days: number) => {
@@ -153,9 +187,10 @@ export const LogActivityModal: React.FC<LogActivityModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
       title="Log Outreach & Cadence Activity"
       maxWidth="640px"
       footer={
@@ -229,11 +264,33 @@ export const LogActivityModal: React.FC<LogActivityModalProps> = ({
 
         {/* 15-DAY CADENCE SELECTOR PRESETS */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <Sparkles size={15} color="#f59e0b" />
-            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-              15-Day Outreach Cadence Template:
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={15} color="#f59e0b" />
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                15-Day Outreach Cadence:
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTemplateModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '0.75rem',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                color: '#3b82f6',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              <FileText size={13} />
+              <span>Browse Outreach Templates</span>
+            </button>
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {CADENCE_STEPS.map((step) => {
@@ -475,5 +532,15 @@ export const LogActivityModal: React.FC<LogActivityModalProps> = ({
         </div>
       </form>
     </Modal>
+
+    <TemplateSelectorModal
+      isOpen={showTemplateModal}
+      onClose={() => setShowTemplateModal(false)}
+      onSelect={handleApplyTemplate}
+      currentType={type}
+      companyName={companyName}
+      contactName={contactName}
+    />
+    </>
   );
 };

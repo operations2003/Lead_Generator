@@ -7,6 +7,11 @@ import { contactRouter } from './routes/contactRoutes';
 import { leadRouter } from './routes/leadRoutes';
 import { activityRouter } from './routes/activityRoutes';
 import { followUpRouter } from './routes/followUpRoutes';
+import { campaignRouter } from './routes/campaignRoutes';
+import { templateRouter } from './routes/templateRoutes';
+import { targetRouter } from './routes/targetRoutes';
+import { reportingRouter } from './routes/reportingRoutes';
+import { leadCaptureRouter } from './routes/leadCaptureRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -40,6 +45,12 @@ export function createApp(): express.Application {
   app.use('/api/v1/leads', leadRouter);
   app.use('/api/v1/activities', activityRouter);
   app.use('/api/v1/follow-ups', followUpRouter);
+  app.use('/api/v1/campaigns', campaignRouter);
+  app.use('/api/v1/templates', templateRouter);
+  app.use('/api/v1/targets', targetRouter);
+  app.use('/api/v1/reporting', reportingRouter);
+  app.use('/api/v1/reports', reportingRouter);
+  app.use('/api/v1/lead-capture', leadCaptureRouter);
 
   // 404 Not Found Handler
   app.use((req: Request, res: Response) => {

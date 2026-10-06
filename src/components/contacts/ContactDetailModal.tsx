@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Contact } from '../../types';
 import {
@@ -40,11 +40,15 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
   onUpdateNotes,
   onNavigateToCompany,
 }) => {
-  if (!contact) return null;
-
-  const [notesText, setNotesText] = useState(contact.notes || '');
+  const [notesText, setNotesText] = useState(contact?.notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [notesSavedSuccess, setNotesSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    setNotesText(contact?.notes || '');
+  }, [contact]);
+
+  if (!contact) return null;
 
   const handleSaveNotes = async () => {
     if (!onUpdateNotes) return;

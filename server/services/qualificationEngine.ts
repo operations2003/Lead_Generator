@@ -115,7 +115,6 @@ export function evaluateLeadQualification(
   const isDecisionMaker = Boolean(
     (contact && contact.decisionMaker) || signals.decisionMakerIdentified
   );
-  const roleAppropriate = hasContact ? isContactRoleAppropriate(contact?.title, signals.product) : false;
   const hasAppropriateContact = hasContact && isDecisionMaker;
 
   if (hasAppropriateContact) {

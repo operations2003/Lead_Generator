@@ -2,7 +2,6 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import { getDb } from '../db/database';
 import {
-  LeadRecord,
   LeadWithRelationsRecord,
   CompanyRecord,
   ContactRecord,
@@ -19,7 +18,6 @@ import {
 import {
   validateStageTransition,
   PIPELINE_STAGES,
-  VALID_LOST_REASONS,
 } from './leadPipelineEngine';
 
 export interface StageChangeInput {

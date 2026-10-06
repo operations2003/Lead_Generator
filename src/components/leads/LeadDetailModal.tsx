@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Lead } from '../../types';
 import {
@@ -40,11 +40,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onNavigateToCompany,
   onNavigateToContact,
 }) => {
-  if (!lead) return null;
-
-  const [notesText, setNotesText] = useState(lead.notes || '');
+  const [notesText, setNotesText] = useState(lead?.notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [notesSavedSuccess, setNotesSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    setNotesText(lead?.notes || '');
+  }, [lead]);
+
+  if (!lead) return null;
 
   const handleSaveNotes = async () => {
     if (!onUpdateNotes) return;

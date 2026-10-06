@@ -8,7 +8,6 @@ import { initDb } from '../db/migrate';
 import {
   validateStageTransition,
   PIPELINE_STAGES,
-  VALID_LOST_REASONS,
 } from '../services/leadPipelineEngine';
 import { LeadStageType } from '../db/types';
 

@@ -11,7 +11,7 @@ export interface StageChangeModalProps {
   onConfirm: (leadId: string, targetStage: LeadStatus, lostReason?: string, notes?: string) => Promise<void>;
 }
 
-export const VALID_LOST_REASONS = [
+const VALID_LOST_REASONS = [
   'Budget Constraints / No Funds',
   'Competitor Chosen',
   'No Response / Ghosted',

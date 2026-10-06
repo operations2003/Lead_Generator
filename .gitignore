@@ -29,3 +29,8 @@ data/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Environment Variables
+.env
+.env.*
+!.env.example

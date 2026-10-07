@@ -291,7 +291,7 @@ export function validateContactInput(req: Request, res: Response, next: NextFunc
     }
   }
 
-  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Archived'];
+  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Do Not Contact', 'Archived'];
   if (status !== undefined && !validStatuses.includes(status)) {
     res.status(400).json({
       success: false,
@@ -345,7 +345,7 @@ export function validateContactUpdateInput(req: Request, res: Response, next: Ne
     }
   }
 
-  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Archived'];
+  const validStatuses = ['Active', 'Contacted', 'Qualified', 'Unresponsive', 'Do Not Contact', 'Archived'];
   if (status !== undefined && !validStatuses.includes(status)) {
     res.status(400).json({
       success: false,

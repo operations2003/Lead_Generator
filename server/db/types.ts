@@ -85,10 +85,12 @@ export interface ContactRecord {
   decision_maker: number;
   linkedin_url: string | null;
   notes: string | null;
-  status: 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Archived';
+  status: 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Do Not Contact' | 'Archived';
   created_at: string;
   updated_at: string;
 }
+
+export type ContactStatusType = 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Do Not Contact' | 'Archived';
 
 export interface ContactWithCompanyRecord extends ContactRecord {
   company_name: string;

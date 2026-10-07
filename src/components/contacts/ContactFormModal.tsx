@@ -40,6 +40,7 @@ const STATUSES: ContactStatus[] = [
   'Contacted',
   'Qualified',
   'Unresponsive',
+  'Do Not Contact',
   'Archived',
 ];
 

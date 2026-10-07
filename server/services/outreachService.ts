@@ -159,6 +159,23 @@ export class OutreachService {
       throw err;
     }
 
+    // Verify contact status is not 'Do Not Contact'
+    const contactCheck = this.db
+      .prepare(`
+        SELECT c.name, c.status
+        FROM contacts c
+        JOIN leads l ON l.contact_id = c.id
+        WHERE l.id = ?
+      `)
+      .get(input.leadId) as { name: string; status: string } | undefined;
+
+    if (contactCheck && contactCheck.status === 'Do Not Contact') {
+      const err = new Error(`Outreach blocked: Contact "${contactCheck.name}" is marked as "Do Not Contact" (opt-out / compliance)`);
+      (err as { status?: number; code?: string }).status = 400;
+      (err as { status?: number; code?: string }).code = 'DO_NOT_CONTACT_VIOLATION';
+      throw err;
+    }
+
     if (!VALID_ACTIVITY_TYPES.includes(input.type)) {
       const err = new Error(`Invalid activity type "${input.type}". Must be one of: ${VALID_ACTIVITY_TYPES.join(', ')}`);
       (err as { status?: number }).status = 400;
@@ -354,6 +371,23 @@ export class OutreachService {
     if (!lead) {
       const err = new Error(`Lead with id "${input.leadId}" not found`);
       (err as { status?: number }).status = 404;
+      throw err;
+    }
+
+    // Verify contact status is not 'Do Not Contact'
+    const contactCheck = this.db
+      .prepare(`
+        SELECT c.name, c.status
+        FROM contacts c
+        JOIN leads l ON l.contact_id = c.id
+        WHERE l.id = ?
+      `)
+      .get(input.leadId) as { name: string; status: string } | undefined;
+
+    if (contactCheck && contactCheck.status === 'Do Not Contact') {
+      const err = new Error(`Follow-up scheduling blocked: Contact "${contactCheck.name}" is marked as "Do Not Contact" (opt-out / compliance)`);
+      (err as { status?: number; code?: string }).status = 400;
+      (err as { status?: number; code?: string }).code = 'DO_NOT_CONTACT_VIOLATION';
       throw err;
     }
 

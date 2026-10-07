@@ -749,6 +749,112 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: '009_phase10_final_database_integrity_and_production_review',
+    name: 'Final database integrity review: Do Not Contact support, constraints audit, composite indexes, and data cleanup',
+    up: (db: DatabaseSync) => {
+      // 1. Upgrade contacts schema to support 'Do Not Contact' status safely
+      const contactsTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='contacts'").get() as { sql: string } | undefined;
+      if (contactsTableSql && !contactsTableSql.sql.includes('Do Not Contact')) {
+        db.exec(`
+          PRAGMA foreign_keys = OFF;
+          CREATE TABLE contacts_p10_upgrade (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            title TEXT,
+            department TEXT,
+            decision_maker INTEGER NOT NULL DEFAULT 0 CHECK (decision_maker IN (0, 1)),
+            linkedin_url TEXT,
+            notes TEXT,
+            status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Contacted', 'Qualified', 'Unresponsive', 'Do Not Contact', 'Archived')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+          );
+
+          INSERT INTO contacts_p10_upgrade (id, company_id, name, email, phone, title, department, decision_maker, linkedin_url, notes, status, created_at, updated_at)
+          SELECT id, company_id, name, email, phone, title, department, decision_maker, linkedin_url, notes, status, created_at, updated_at FROM contacts;
+
+          DROP TABLE contacts;
+          ALTER TABLE contacts_p10_upgrade RENAME TO contacts;
+
+          CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
+          CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
+          CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
+          CREATE INDEX IF NOT EXISTS idx_contacts_title ON contacts(title);
+          CREATE INDEX IF NOT EXISTS idx_contacts_decision_maker ON contacts(decision_maker);
+          CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
+          CREATE INDEX IF NOT EXISTS idx_contacts_created_at ON contacts(created_at);
+          CREATE INDEX IF NOT EXISTS idx_contacts_search_opt ON contacts(status, decision_maker, company_id);
+          CREATE INDEX IF NOT EXISTS idx_contacts_status_dm ON contacts(status, decision_maker);
+
+          PRAGMA foreign_keys = ON;
+        `);
+      }
+
+      // 2. Data hygiene & null constraints audit
+      // Ensure all Won leads have won_at set
+      db.exec(`
+        UPDATE leads
+        SET won_at = COALESCE(won_at, stage_changed_at, updated_at, datetime('now'))
+        WHERE status = 'Won' AND won_at IS NULL;
+      `);
+
+      // Ensure all Lost leads have lost_at and lost_reason set
+      db.exec(`
+        UPDATE leads
+        SET lost_at = COALESCE(lost_at, stage_changed_at, updated_at, datetime('now')),
+            lost_reason = COALESCE(lost_reason, 'Unspecified / Closed during discovery')
+        WHERE status = 'Lost' AND (lost_at IS NULL OR lost_reason IS NULL OR TRIM(lost_reason) = '');
+      `);
+
+      // Ensure all Completed follow-ups have completed_at set
+      db.exec(`
+        UPDATE follow_ups
+        SET completed_at = COALESCE(completed_at, updated_at, datetime('now'))
+        WHERE status = 'Completed' AND completed_at IS NULL;
+      `);
+
+      // 3. Composite & Performance Indexes for High-Velocity Production Queries
+      db.exec(`
+        -- Stage history audit trail indexing
+        CREATE INDEX IF NOT EXISTS idx_lead_history_lead_created ON lead_stage_history(lead_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_lead_history_to_stage ON lead_stage_history(to_stage);
+
+        -- Activities query optimization
+        CREATE INDEX IF NOT EXISTS idx_activities_user_date ON activities(user_id, activity_date);
+        CREATE INDEX IF NOT EXISTS idx_activities_lead_date ON activities(lead_id, activity_date);
+
+        -- Campaigns & outreach templates composite indexes
+        CREATE INDEX IF NOT EXISTS idx_campaigns_status_product ON campaigns(status, product);
+        CREATE INDEX IF NOT EXISTS idx_templates_product_status ON outreach_templates(product, status);
+
+        -- Leads source and campaign performance indexes
+        CREATE INDEX IF NOT EXISTS idx_leads_source_status ON leads(source, status);
+        CREATE INDEX IF NOT EXISTS idx_leads_campaign_status ON leads(campaign_id, status);
+
+        -- Weekly targets date and user filtering
+        CREATE INDEX IF NOT EXISTS idx_weekly_targets_user_dates ON weekly_targets(user_id, start_date, end_date);
+      `);
+
+      // 4. Duplicate Prevention Constraints for Weekly Targets
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_targets_unique_user
+        ON weekly_targets(target_type, start_date, end_date, user_id)
+        WHERE user_id IS NOT NULL;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_targets_unique_global
+        ON weekly_targets(target_type, start_date, end_date)
+        WHERE user_id IS NULL;
+      `);
+
+      // 5. Query planner optimization
+      db.exec(`ANALYZE;`);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): { applied: string[]; total: number } {
@@ -1250,6 +1356,19 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       notes: 'Technical co-founder evaluating GPU clusters and cloud pipeline automation.',
       status: 'Active',
     },
+    {
+      id: 'cnt_012',
+      company_id: 'cmp_zenith_06',
+      name: 'Arthur Pendelton',
+      email: 'a.pendelton@zenithai.tech',
+      phone: '+1 (206) 555-0199',
+      title: 'VP of Procurement',
+      department: 'Procurement',
+      decision_maker: 1,
+      linkedin_url: 'https://linkedin.com/in/arthur-pendelton',
+      notes: 'Requested no further contact until next fiscal year budget review.',
+      status: 'Do Not Contact',
+    },
   ];
 
   const insertContactStmt = db.prepare(`
@@ -1411,9 +1530,9 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       id, company_id, contact_id, product, title, value, status, priority,
       hiring_volume, hiring_multiple_roles, manual_hr_processes, existing_tools,
       company_size, decision_maker_identified, qualification_score, qualification_notes, notes,
-      source, assigned_to, created_at, updated_at
+      source, assigned_to, won_at, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       company_id = excluded.company_id,
       contact_id = excluded.contact_id,
@@ -1433,16 +1552,18 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
       notes = excluded.notes,
       source = excluded.source,
       assigned_to = excluded.assigned_to,
+      won_at = excluded.won_at,
       updated_at = datetime('now')
   `);
 
   for (const ld of seedLeads) {
+    const wonAt = ld.status === 'Won' ? new Date().toISOString() : null;
     insertLeadStmt.run(
       ld.id, ld.company_id, ld.contact_id, ld.product, ld.title, ld.value,
       ld.status, ld.priority, ld.hiring_volume, ld.hiring_multiple_roles,
       ld.manual_hr_processes, ld.existing_tools, ld.company_size,
       ld.decision_maker_identified, ld.qualification_score, ld.qualification_notes,
-      ld.notes, ld.source, ld.assigned_to
+      ld.notes, ld.source, ld.assigned_to, wonAt
     );
 
     // Seed initial stage history entry if table exists and no history yet

@@ -561,6 +561,15 @@ export class ContactService {
     const updateSql = `UPDATE contacts SET ${updates.join(', ')} WHERE id = ?`;
     this.db.prepare(updateSql).run(...params);
 
+    if (input.status === 'Do Not Contact') {
+      // Compliance enforcement: Automatically cancel pending follow-ups for leads linked to this contact
+      this.db.prepare(`
+        UPDATE follow_ups
+        SET status = 'Cancelled', notes = COALESCE(notes, '') || ' [Auto-cancelled: Contact set to Do Not Contact]'
+        WHERE status = 'Pending' AND lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+      `).run(id);
+    }
+
     return this.getById(id)!;
   }
 

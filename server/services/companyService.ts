@@ -192,7 +192,7 @@ export class CompanyService {
 
     const employeeCount = input.employeeCount !== undefined
       ? input.employeeCount
-      : parseInt(input.employeeSize.replace(/[^0-9]/g, ''), 10) || 50;
+      : input.employeeSize ? (parseInt(input.employeeSize.replace(/[^0-9]/g, ''), 10) || 50) : 50;
 
     const status = input.status || 'Prospect';
 

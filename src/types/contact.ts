@@ -1,6 +1,6 @@
 import { RelatedLead } from './company';
 
-export type ContactStatus = 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Archived';
+export type ContactStatus = 'Active' | 'Contacted' | 'Qualified' | 'Unresponsive' | 'Do Not Contact' | 'Archived';
 
 export interface Contact {
   id: string;

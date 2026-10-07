@@ -72,6 +72,8 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
         return <span className="badge badge-info">Contacted</span>;
       case 'Unresponsive':
         return <span className="badge badge-warning">Unresponsive</span>;
+      case 'Do Not Contact':
+        return <span className="badge badge-danger">Do Not Contact</span>;
       case 'Archived':
         return <span className="badge badge-danger">Archived</span>;
       default:

@@ -276,7 +276,7 @@ export class ReportingService {
       };
     });
 
-    // 10. Recent activity trends (last 7 days within range)
+    // 10. Recent activity trends (last 14 days within range)
     const trendRows = this.db.prepare(`
       SELECT 
         substr(activity_date, 1, 10) as date,
@@ -288,10 +288,18 @@ export class ReportingService {
       LIMIT 14
     `).all(startDate, endDate) as unknown as { date: string; activities: number }[];
 
+    const leadTrendRows = this.db.prepare(`
+      SELECT substr(created_at, 1, 10) as date, COUNT(*) as leads
+      FROM leads
+      WHERE substr(created_at, 1, 10) BETWEEN ? AND ?
+      GROUP BY substr(created_at, 1, 10)
+    `).all(startDate, endDate) as unknown as { date: string; leads: number }[];
+    const leadsMap = new Map<string, number>(leadTrendRows.map((l) => [l.date, Number(l.leads || 0)]));
+
     const recentActivityTrends = trendRows.map((t) => ({
       date: t.date,
       activities: Number(t.activities || 0),
-      leads: 0,
+      leads: leadsMap.get(t.date) || 0,
     }));
 
     return {

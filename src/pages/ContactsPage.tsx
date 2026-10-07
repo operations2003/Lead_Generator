@@ -56,6 +56,7 @@ const STATUS_OPTIONS = [
   { label: 'Contacted', value: 'Contacted' },
   { label: 'Qualified', value: 'Qualified' },
   { label: 'Unresponsive', value: 'Unresponsive' },
+  { label: 'Do Not Contact', value: 'Do Not Contact' },
   { label: 'Archived', value: 'Archived' },
 ];
 
@@ -277,6 +278,8 @@ export const ContactsPage: React.FC = () => {
         return <span className="badge badge-info">Contacted</span>;
       case 'Unresponsive':
         return <span className="badge badge-warning">Unresponsive</span>;
+      case 'Do Not Contact':
+        return <span className="badge badge-danger">Do Not Contact</span>;
       case 'Archived':
         return <span className="badge badge-danger">Archived</span>;
       default:

@@ -13,6 +13,7 @@ import { targetRouter } from './routes/targetRoutes';
 import { reportingRouter } from './routes/reportingRoutes';
 import { leadCaptureRouter } from './routes/leadCaptureRoutes';
 import { discoveryRouter } from './routes/discoveryRoutes';
+import { aiLeadGenRouter } from './routes/aiLeadGenRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -53,6 +54,7 @@ export function createApp(): express.Application {
   app.use('/api/v1/reporting', reportingRouter);
   app.use('/api/v1/reports', reportingRouter);
   app.use('/api/v1/lead-capture', leadCaptureRouter);
+  app.use('/api/v1/ai', aiLeadGenRouter);
 
   // 404 Not Found Handler
   app.use((req: Request, res: Response) => {

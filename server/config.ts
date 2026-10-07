@@ -10,4 +10,5 @@ export const config = {
   lockoutDurationMinutes: 15,
   dbPath: process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'leads.db'),
   databaseUrl: process.env.DATABASE_URL,
+  openaiApiKey: process.env.OPENAI_API_KEY || '',
 };

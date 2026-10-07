@@ -196,3 +196,4 @@ If any migration step encounters an unexpected error during execution:
    ```powershell
    Copy-Item -Path "data/leads.db.backup-<TIMESTAMP>" -Destination "data/leads.db" -Force
    ```
+

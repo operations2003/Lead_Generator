@@ -40,6 +40,7 @@ import {
   StageChangeModal,
   LeadKanbanBoard,
   LeadDiscoveryFilters,
+  AiLeadGenModal,
 } from '../components/leads';
 
 const PIPELINE_BOARD_STAGES: LeadStatus[] = [
@@ -114,6 +115,7 @@ export const LeadsPage: React.FC = () => {
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
   const [leadToArchive, setLeadToArchive] = useState<Lead | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // Stage change modal state
   const [stageChangeLead, setStageChangeLead] = useState<Lead | null>(null);
@@ -747,6 +749,25 @@ export const LeadsPage: React.FC = () => {
             </button>
             <button
               type="button"
+              className="btn"
+              onClick={() => setIsAiModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 600,
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                cursor: 'pointer',
+              }}
+            >
+              <Sparkles size={16} />
+              <span>AI Lead Generator</span>
+            </button>
+            <button
+              type="button"
               className="btn btn-primary"
               onClick={() => {
                 setLeadToEdit(null);
@@ -1021,6 +1042,16 @@ export const LeadsPage: React.FC = () => {
           setStageChangeTarget(null);
         }}
         onConfirm={handleStageChangeConfirm}
+      />
+
+      {/* AI LEAD GENERATION MODAL */}
+      <AiLeadGenModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        onLeadsImported={() => {
+          loadPipeline();
+          loadLeads();
+        }}
       />
     </div>
   );

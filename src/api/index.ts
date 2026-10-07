@@ -12,3 +12,4 @@ export * from './leadCaptureService';
 export * from './reportService';
 export * from './authService';
 export * from './discoveryService';
+export * from './aiService';

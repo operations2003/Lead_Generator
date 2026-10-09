@@ -1,3 +1,4 @@
+/// <reference path="../types/jsx.d.ts" />
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   PageHeader,
@@ -23,10 +24,12 @@ import {
   RefreshCw,
   Layers,
   Sparkles,
+  Compass,
 } from 'lucide-react';
 import { reportService, leadService } from '../api';
 import { ReportingOverview, Lead } from '../types';
 import { WeeklyTargetsWidget } from '../components/targets';
+import { AutoDiscoveryModal } from '../components/discovery';
 
 export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,7 @@ export const DashboardPage: React.FC = () => {
   const [overview, setOverview] = useState<ReportingOverview | null>(null);
   const [period, setPeriod] = useState<string>('this_month');
   const [recentLeads, setRecentLeads] = useState<Lead[]>([]);
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -123,10 +127,27 @@ export const DashboardPage: React.FC = () => {
         breadcrumbs={[{ label: 'Home' }, { label: 'Dashboard', active: true }]}
         actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setIsDiscoveryOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontWeight: 600,
+                fontSize: '0.8125rem',
+                padding: '6px 14px',
+                backgroundColor: '#2563eb',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
+              }}
+            >
+              <Compass size={15} />
+              <span>Automatic Lead Discovery</span>
+            </button>
             <select
               className="input"
               value={period}
-              onChange={(e) => setPeriod(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPeriod(e.target.value)}
               style={{ padding: '6px 12px', fontSize: '0.8125rem', width: 'auto' }}
             >
               <option value="today">Today</option>
@@ -146,6 +167,89 @@ export const DashboardPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* AUTOMATIC DISCOVERY HERO ACTION BANNER */}
+      <div
+        style={{
+          marginBottom: '1.5rem',
+          padding: '1.25rem 1.5rem',
+          borderRadius: '14px',
+          background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(15, 23, 42, 0.8) 100%)',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#60a5fa',
+              flexShrink: 0,
+            }}
+          >
+            <Compass size={26} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '3px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
+                Automated Company Lead Discovery & Contact Enrichment
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  color: '#34d399',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                }}
+              >
+                Zero Setup Required
+              </span>
+            </div>
+            <p style={{ fontSize: '0.825rem', color: '#94a3b8', margin: 0 }}>
+              Input Category and Location &bull; Automatic Stage A Business Discovery &bull; Stage B Website Crawling (Emails, Phones, Physical Addresses, Source URLs)
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsDiscoveryOpen(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '9px',
+            backgroundColor: '#2563eb',
+            border: 'none',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Compass size={16} />
+          <span>Launch Discovery Studio</span>
+        </button>
+      </div>
 
       {/* WEEKLY TARGETS & QUOTA TRACKING WIDGET */}
       <WeeklyTargetsWidget />
@@ -423,6 +527,13 @@ export const DashboardPage: React.FC = () => {
           </Card>
         </>
       ) : null}
+
+      {/* AUTOMATIC DISCOVERY STUDIO MODAL */}
+      <AutoDiscoveryModal
+        isOpen={isDiscoveryOpen}
+        onClose={() => setIsDiscoveryOpen(false)}
+        onLeadsSaved={fetchDashboardData}
+      />
     </div>
   );
 };

@@ -1,3 +1,4 @@
+/// <reference path="../types/sqlite.d.ts" />
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 
@@ -853,6 +854,64 @@ export const migrations: Migration[] = [
 
       // 5. Query planner optimization
       db.exec(`ANALYZE;`);
+    },
+  },
+  {
+    id: '010_create_discovery_leads_tables',
+    name: 'Create discovery_jobs and discovered_leads tables for automated discovery workflow',
+    up: (db: DatabaseSync) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS discovery_jobs (
+          id TEXT PRIMARY KEY,
+          category TEXT NOT NULL,
+          location TEXT NOT NULL,
+          max_results INTEGER NOT NULL DEFAULT 10,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'discovering', 'enriching', 'completed', 'failed', 'partial')),
+          progress_percent INTEGER NOT NULL DEFAULT 0,
+          progress_message TEXT,
+          discovered_count INTEGER NOT NULL DEFAULT 0,
+          enriched_count INTEGER NOT NULL DEFAULT 0,
+          error_message TEXT,
+          created_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_discovery_jobs_created_at ON discovery_jobs(created_at);
+        CREATE INDEX IF NOT EXISTS idx_discovery_jobs_status ON discovery_jobs(status);
+
+        CREATE TABLE IF NOT EXISTS discovered_leads (
+          id TEXT PRIMARY KEY,
+          job_id TEXT NOT NULL,
+          company_name TEXT NOT NULL,
+          normalized_name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          location TEXT NOT NULL,
+          website TEXT NOT NULL,
+          domain TEXT NOT NULL,
+          emails TEXT,
+          phones TEXT,
+          address TEXT,
+          address_source_url TEXT,
+          source_urls TEXT,
+          extraction_status TEXT NOT NULL DEFAULT 'pending' CHECK (extraction_status IN ('pending', 'completed', 'no_contacts', 'website_unavailable', 'failed')),
+          extraction_error TEXT,
+          saved_to_crm INTEGER NOT NULL DEFAULT 0 CHECK (saved_to_crm IN (0, 1)),
+          saved_company_id TEXT,
+          saved_lead_id TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (job_id) REFERENCES discovery_jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (saved_company_id) REFERENCES companies(id) ON DELETE SET NULL,
+          FOREIGN KEY (saved_lead_id) REFERENCES leads(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_discovered_leads_job_id ON discovered_leads(job_id);
+        CREATE INDEX IF NOT EXISTS idx_discovered_leads_domain ON discovered_leads(domain);
+        CREATE INDEX IF NOT EXISTS idx_discovered_leads_status ON discovered_leads(extraction_status);
+        CREATE INDEX IF NOT EXISTS idx_discovered_leads_saved ON discovered_leads(saved_to_crm);
+      `);
     },
   },
 ];

@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { DiscoveryService } from '../services/discoveryService';
 import { DataQualityService } from '../services/dataQualityService';
+import { autoDiscoveryService, DiscoveryProgressEvent } from '../services/autoDiscoveryService';
 import { authenticateToken, AuthenticatedRequest, requirePermission } from '../middleware/auth';
 import { LeadFilterOptions } from '../services/leadService';
 
@@ -365,3 +366,288 @@ discoveryRouter.get(
     }
   }
 );
+
+/**
+ * POST /api/v1/discovery/auto-discover
+ * Executes Stage A (Company Discovery) + Stage B (Website Contact Enrichment)
+ */
+discoveryRouter.post(
+  '/auto-discover',
+  requirePermission('leads:write'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { category, location, maxResults, autoSave } = req.body;
+
+      if (!category || typeof category !== 'string' || !category.trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'Field "category" is required (business category, e.g. "Software Development", "Dentists")',
+          code: 'MISSING_CATEGORY',
+        });
+        return;
+      }
+
+      if (!location || typeof location !== 'string' || !location.trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'Field "location" is required (target location, e.g. "Austin, TX", "London")',
+          code: 'MISSING_LOCATION',
+        });
+        return;
+      }
+
+      const parsedMax = maxResults ? Math.min(Math.max(Number(maxResults), 1), 50) : 10;
+      const userId = req.user?.id || 'usr_admin_001';
+
+      const result = await autoDiscoveryService.runDiscovery(
+        {
+          category: category.trim(),
+          location: location.trim(),
+          maxResults: parsedMax,
+        },
+        userId
+      );
+
+      // Auto-save to CRM if requested
+      if (autoSave && result.leads.length > 0) {
+        const leadIds = result.leads.map((l) => l.id);
+        await autoDiscoveryService.saveLeadsToCrm(result.job.id, leadIds, userId);
+        result.leads = autoDiscoveryService.getLeadsByJobId(result.job.id);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Discovered and processed ${result.leads.length} companies`,
+        data: result,
+      });
+    } catch (error: unknown) {
+      const err = error as { message?: string; status?: number; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to execute automatic lead discovery',
+        code: err.code || 'AUTO_DISCOVERY_ERROR',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/discovery/auto-discover/stream
+ * Server-Sent Events (SSE) live progress stream for discovery & enrichment
+ */
+discoveryRouter.get(
+  '/auto-discover/stream',
+  requirePermission('leads:write'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { category, location, maxResults } = req.query;
+
+    if (!category || !location) {
+      res.status(400).json({
+        success: false,
+        message: 'Query parameters "category" and "location" are required',
+        code: 'MISSING_PARAMETERS',
+      });
+      return;
+    }
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const sendEvent = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    sendEvent('connected', { message: 'SSE connection established for lead discovery' });
+
+    const onProgress = (evt: DiscoveryProgressEvent) => {
+      sendEvent('progress', evt);
+    };
+
+    autoDiscoveryService.on('progress', onProgress);
+
+    req.on('close', () => {
+      autoDiscoveryService.off('progress', onProgress);
+    });
+
+    try {
+      const userId = req.user?.id || 'usr_admin_001';
+      const parsedMax = maxResults ? Math.min(Math.max(Number(maxResults), 1), 50) : 10;
+
+      const result = await autoDiscoveryService.runDiscovery(
+        {
+          category: String(category).trim(),
+          location: String(location).trim(),
+          maxResults: parsedMax,
+        },
+        userId
+      );
+
+      sendEvent('complete', {
+        job: result.job,
+        leads: result.leads,
+        message: `Successfully completed discovery of ${result.leads.length} companies`,
+      });
+    } catch (err) {
+      sendEvent('error', {
+        message: (err as Error).message || 'Automatic discovery failed',
+      });
+    } finally {
+      autoDiscoveryService.off('progress', onProgress);
+      res.end();
+    }
+  }
+);
+
+/**
+ * GET /api/v1/discovery/jobs
+ * List recent discovery jobs
+ */
+discoveryRouter.get(
+  '/jobs',
+  requirePermission('leads:read'),
+  (req: AuthenticatedRequest, res: Response): void => {
+    try {
+      const limit = req.query.limit ? Math.min(Math.max(Number(req.query.limit), 1), 50) : 10;
+      const jobs = autoDiscoveryService.getRecentJobs(limit);
+      res.status(200).json({
+        success: true,
+        data: jobs,
+      });
+    } catch (error: unknown) {
+      const err = error as { message?: string; status?: number; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to list discovery jobs',
+        code: err.code || 'DISCOVERY_JOBS_ERROR',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/discovery/jobs/:id
+ * Retrieve job details and discovered leads with search & status filters
+ */
+discoveryRouter.get(
+  '/jobs/:id',
+  requirePermission('leads:read'),
+  (req: AuthenticatedRequest, res: Response): void => {
+    try {
+      const jobId = req.params.id;
+      const job = autoDiscoveryService.getJobById(jobId);
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: `Discovery job "${jobId}" not found`,
+          code: 'JOB_NOT_FOUND',
+        });
+        return;
+      }
+
+      const { search, status, hasContact } = req.query;
+      const leads = autoDiscoveryService.getLeadsByJobId(jobId, {
+        search: search ? String(search) : undefined,
+        status: status ? String(status) : undefined,
+        hasContact: hasContact === 'true' || hasContact === '1',
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          job,
+          leads,
+          total: leads.length,
+        },
+      });
+    } catch (error: unknown) {
+      const err = error as { message?: string; status?: number; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to retrieve discovery job',
+        code: err.code || 'DISCOVERY_JOB_ERROR',
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/discovery/jobs/:id/save-crm
+ * Save selected discovered leads to core CRM database (companies, contacts, leads)
+ */
+discoveryRouter.post(
+  '/jobs/:id/save-crm',
+  requirePermission('leads:write'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const jobId = req.params.id;
+      const { leadIds } = req.body;
+
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Array of "leadIds" is required',
+          code: 'MISSING_LEAD_IDS',
+        });
+        return;
+      }
+
+      const userId = req.user?.id || 'usr_admin_001';
+      const result = await autoDiscoveryService.saveLeadsToCrm(jobId, leadIds, userId);
+
+      res.status(200).json({
+        success: true,
+        message: `Successfully saved ${result.savedCount} leads to CRM`,
+        data: result,
+      });
+    } catch (error: unknown) {
+      const err = error as { message?: string; status?: number; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to save leads to CRM',
+        code: err.code || 'SAVE_CRM_ERROR',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/discovery/jobs/:id/export-csv
+ * Export discovered leads to CSV
+ */
+discoveryRouter.get(
+  '/jobs/:id/export-csv',
+  requirePermission('leads:read'),
+  (req: AuthenticatedRequest, res: Response): void => {
+    try {
+      const jobId = req.params.id;
+      const job = autoDiscoveryService.getJobById(jobId);
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: `Discovery job "${jobId}" not found`,
+          code: 'JOB_NOT_FOUND',
+        });
+        return;
+      }
+
+      const csvContent = autoDiscoveryService.exportCsv(jobId);
+      const filename = `leads_discovery_${job.category.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csvContent);
+    } catch (error: unknown) {
+      const err = error as { message?: string; status?: number; code?: string };
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Failed to export CSV',
+        code: err.code || 'EXPORT_CSV_ERROR',
+      });
+    }
+  }
+);
+

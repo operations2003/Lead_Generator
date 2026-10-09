@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Clock,
   Sparkles,
+  Compass,
 } from 'lucide-react';
 import { leadService } from '../api';
 import {
@@ -42,6 +43,7 @@ import {
   LeadDiscoveryFilters,
   AiLeadGenModal,
 } from '../components/leads';
+import { AutoDiscoveryModal } from '../components/discovery';
 
 const PIPELINE_BOARD_STAGES: LeadStatus[] = [
   'New',
@@ -116,6 +118,7 @@ export const LeadsPage: React.FC = () => {
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
   const [leadToArchive, setLeadToArchive] = useState<Lead | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isAutoDiscoveryOpen, setIsAutoDiscoveryOpen] = useState(false);
 
   // Stage change modal state
   const [stageChangeLead, setStageChangeLead] = useState<Lead | null>(null);
@@ -749,6 +752,22 @@ export const LeadsPage: React.FC = () => {
             </button>
             <button
               type="button"
+              className="btn btn-primary"
+              onClick={() => setIsAutoDiscoveryOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#2563eb',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                fontWeight: 600,
+              }}
+            >
+              <Compass size={15} />
+              <span>Auto Lead Finder</span>
+            </button>
+            <button
+              type="button"
               className="btn"
               onClick={() => setIsAiModalOpen(true)}
               style={{
@@ -1049,6 +1068,16 @@ export const LeadsPage: React.FC = () => {
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         onLeadsImported={() => {
+          loadPipeline();
+          loadLeads();
+        }}
+      />
+
+      {/* AUTOMATIC DISCOVERY WORKFLOW MODAL */}
+      <AutoDiscoveryModal
+        isOpen={isAutoDiscoveryOpen}
+        onClose={() => setIsAutoDiscoveryOpen(false)}
+        onLeadsSaved={() => {
           loadPipeline();
           loadLeads();
         }}

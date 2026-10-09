@@ -14,8 +14,24 @@ export function authenticateToken(
   res: Response,
   next: NextFunction
 ): void {
+  let token: string | undefined;
   const authHeader = req.headers['authorization'];
-  if (!authHeader) {
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      res.status(401).json({
+        success: false,
+        message: 'Malformed authorization header format. Format must be: Bearer <token>',
+        code: 'AUTH_TOKEN_MALFORMED',
+      });
+      return;
+    }
+    token = parts[1];
+  } else if (req.query.token && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (!token) {
     res.status(401).json({
       success: false,
       message: 'Authentication token required',
@@ -23,18 +39,6 @@ export function authenticateToken(
     });
     return;
   }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    res.status(401).json({
-      success: false,
-      message: 'Malformed authorization header format. Format must be: Bearer <token>',
-      code: 'AUTH_TOKEN_MALFORMED',
-    });
-    return;
-  }
-
-  const token = parts[1];
 
   try {
     const { user } = authService.validateSession(token);

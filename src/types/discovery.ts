@@ -90,3 +90,81 @@ export interface DiscoverySearchResult {
   limit: number;
   totalPages: number;
 }
+
+export type DiscoveryJobStatus =
+  | 'pending'
+  | 'discovering'
+  | 'enriching'
+  | 'completed'
+  | 'failed'
+  | 'partial';
+
+export type ExtractionStatus =
+  | 'pending'
+  | 'completed'
+  | 'no_contacts'
+  | 'website_unavailable'
+  | 'failed';
+
+export type ContactVerificationStatus = 'found' | 'syntax_valid' | 'verified';
+
+export interface DiscoveredContactEmail {
+  email: string;
+  type: string;
+  status: ContactVerificationStatus;
+  sourceUrl: string;
+}
+
+export interface DiscoveredContactPhone {
+  phone: string;
+  type: string;
+  status: ContactVerificationStatus;
+  sourceUrl: string;
+}
+
+export interface DiscoveryJob {
+  id: string;
+  category: string;
+  location: string;
+  max_results: number;
+  status: DiscoveryJobStatus;
+  progress_percent: number;
+  progress_message: string | null;
+  discovered_count: number;
+  enriched_count: number;
+  error_message: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveredLead {
+  id: string;
+  job_id: string;
+  company_name: string;
+  normalized_name: string;
+  category: string;
+  location: string;
+  website: string;
+  domain: string;
+  emails: string | null; // serialized JSON or parsed
+  phones: string | null; // serialized JSON or parsed
+  address: string | null;
+  address_source_url: string | null;
+  source_urls: string | null; // serialized JSON or parsed
+  extraction_status: ExtractionStatus;
+  extraction_error: string | null;
+  saved_to_crm: number;
+  saved_company_id: string | null;
+  saved_lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoDiscoveryPayload {
+  category: string;
+  location: string;
+  maxResults?: number;
+  autoSave?: boolean;
+}
+

@@ -26,6 +26,7 @@ import {
   Sparkles,
   Wrench,
   Filter,
+  Compass,
 } from 'lucide-react';
 import { companyService } from '../api';
 import {
@@ -37,6 +38,7 @@ import {
   EXISTING_TOOLS,
 } from '../types';
 import { CompanyDetailModal, CompanyFormModal, ArchiveConfirmModal } from '../components/companies';
+import { AutoDiscoveryModal } from '../components/discovery';
 
 const INDUSTRY_OPTIONS = [
   'Cloud & Cybersecurity',
@@ -89,6 +91,7 @@ export const CompaniesPage: React.FC = () => {
   const [companyToEdit, setCompanyToEdit] = useState<Company | null>(null);
   const [companyToView, setCompanyToView] = useState<Company | null>(null);
   const [companyToArchive, setCompanyToArchive] = useState<Company | null>(null);
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -443,6 +446,14 @@ export const CompaniesPage: React.FC = () => {
                 <span>Reset Filters ({activeFiltersCount})</span>
               </button>
             )}
+            <button
+              className="btn btn-secondary"
+              onClick={() => setIsDiscoveryOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Compass size={15} />
+              <span>Auto Lead Finder</span>
+            </button>
             <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
               <Plus size={16} />
               <span>Add Target Account</span>
@@ -769,6 +780,13 @@ export const CompaniesPage: React.FC = () => {
         company={companyToArchive}
         onClose={() => setCompanyToArchive(null)}
         onConfirm={handleArchiveCompany}
+      />
+
+      {/* Auto Discovery Workflow Modal */}
+      <AutoDiscoveryModal
+        isOpen={isDiscoveryOpen}
+        onClose={() => setIsDiscoveryOpen(false)}
+        onLeadsSaved={loadCompanies}
       />
     </div>
   );

@@ -407,3 +407,74 @@ export interface DiscoveryOptionsResponse {
   followUpStatuses: string[];
 }
 
+export type DiscoveryJobStatus =
+  | 'pending'
+  | 'discovering'
+  | 'enriching'
+  | 'completed'
+  | 'failed'
+  | 'partial';
+
+export type ExtractionStatus =
+  | 'pending'
+  | 'completed'
+  | 'no_contacts'
+  | 'website_unavailable'
+  | 'failed';
+
+export type ContactVerificationStatus = 'found' | 'syntax_valid' | 'verified';
+
+export interface DiscoveredContactEmail {
+  email: string;
+  type: string;
+  status: ContactVerificationStatus;
+  sourceUrl: string;
+}
+
+export interface DiscoveredContactPhone {
+  phone: string;
+  type: string;
+  status: ContactVerificationStatus;
+  sourceUrl: string;
+}
+
+export interface DiscoveryJobRecord {
+  id: string;
+  category: string;
+  location: string;
+  max_results: number;
+  status: DiscoveryJobStatus;
+  progress_percent: number;
+  progress_message: string | null;
+  discovered_count: number;
+  enriched_count: number;
+  error_message: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveredLeadRecord {
+  id: string;
+  job_id: string;
+  company_name: string;
+  normalized_name: string;
+  category: string;
+  location: string;
+  website: string;
+  domain: string;
+  emails: string | null;
+  phones: string | null;
+  address: string | null;
+  address_source_url: string | null;
+  source_urls: string | null;
+  extraction_status: ExtractionStatus;
+  extraction_error: string | null;
+  saved_to_crm: number;
+  saved_company_id: string | null;
+  saved_lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+

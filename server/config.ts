@@ -11,4 +11,5 @@ export const config = {
   dbPath: process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'leads.db'),
   databaseUrl: process.env.DATABASE_URL,
   openaiApiKey: process.env.OPENAI_API_KEY || '',
+  hunterApiKey: process.env.HUNTER_API_KEY || '',
 };

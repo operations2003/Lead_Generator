@@ -204,7 +204,7 @@ export const DashboardPage: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '3px' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
-                Automated Company Lead Discovery & Contact Enrichment
+                Hunter.io B2B Prospecting & Automated Lead Discovery
               </h3>
               <span
                 style={{
@@ -214,16 +214,16 @@ export const DashboardPage: React.FC = () => {
                   letterSpacing: '0.5px',
                   padding: '2px 7px',
                   borderRadius: '999px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                  color: '#34d399',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  color: '#60a5fa',
+                  border: '1px solid rgba(59, 130, 246, 0.4)',
                 }}
               >
-                Zero Setup Required
+                Hunter API v2 Integrated
               </span>
             </div>
             <p style={{ fontSize: '0.825rem', color: '#94a3b8', margin: 0 }}>
-              Input Category and Location &bull; Automatic Stage A Business Discovery &bull; Stage B Website Crawling (Emails, Phones, Physical Addresses, Source URLs)
+              Hunter.io POST /v2/discover &bull; Domain Search emails &bull; On-demand Email Verifier &bull; Direct CRM Saving &bull; CSV Export
             </p>
           </div>
         </div>
@@ -247,7 +247,7 @@ export const DashboardPage: React.FC = () => {
           }}
         >
           <Compass size={16} />
-          <span>Launch Discovery Studio</span>
+          <span>Launch Prospecting Studio</span>
         </button>
       </div>
 

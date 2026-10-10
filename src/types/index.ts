@@ -9,3 +9,4 @@ export * from './reporting';
 export * from './report';
 export * from './auth';
 export * from './discovery';
+export * from './hunter';

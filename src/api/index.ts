@@ -13,3 +13,4 @@ export * from './reportService';
 export * from './authService';
 export * from './discoveryService';
 export * from './aiService';
+export * from './hunterService';

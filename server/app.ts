@@ -14,6 +14,7 @@ import { reportingRouter } from './routes/reportingRoutes';
 import { leadCaptureRouter } from './routes/leadCaptureRoutes';
 import { discoveryRouter } from './routes/discoveryRoutes';
 import { aiLeadGenRouter } from './routes/aiLeadGenRoutes';
+import { hunterRouter } from './routes/hunterRoutes';
 
 export function createApp(): express.Application {
   const app = express();
@@ -46,6 +47,7 @@ export function createApp(): express.Application {
   app.use('/api/v1/contacts', contactRouter);
   app.use('/api/v1/leads', leadRouter);
   app.use('/api/v1/discovery', discoveryRouter);
+  app.use('/api/v1/hunter', hunterRouter);
   app.use('/api/v1/activities', activityRouter);
   app.use('/api/v1/follow-ups', followUpRouter);
   app.use('/api/v1/campaigns', campaignRouter);

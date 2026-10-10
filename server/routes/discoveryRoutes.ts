@@ -537,7 +537,7 @@ discoveryRouter.get(
   requirePermission('leads:read'),
   (req: AuthenticatedRequest, res: Response): void => {
     try {
-      const jobId = req.params.id;
+      const jobId = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
       const job = autoDiscoveryService.getJobById(jobId);
       if (!job) {
         res.status(404).json({
@@ -583,7 +583,7 @@ discoveryRouter.post(
   requirePermission('leads:write'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const jobId = req.params.id;
+      const jobId = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
       const { leadIds } = req.body;
 
       if (!Array.isArray(leadIds) || leadIds.length === 0) {
@@ -623,7 +623,7 @@ discoveryRouter.get(
   requirePermission('leads:read'),
   (req: AuthenticatedRequest, res: Response): void => {
     try {
-      const jobId = req.params.id;
+      const jobId = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
       const job = autoDiscoveryService.getJobById(jobId);
       if (!job) {
         res.status(404).json({

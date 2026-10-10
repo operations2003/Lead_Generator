@@ -116,9 +116,12 @@ export class LeadCaptureService {
 
     // 3. Connect to existing campaign if provided or default
     let campaignId = input.campaignId || null;
-    if (!campaignId) {
+    if (campaignId) {
+      const exists = this.db.prepare('SELECT id FROM campaigns WHERE id = ?').get(campaignId);
+      if (!exists) campaignId = null;
+    } else {
       const defaultCmp = this.db.prepare("SELECT id FROM campaigns WHERE lead_source = 'Free ATS Score Check' LIMIT 1").get() as { id: string } | undefined;
-      campaignId = defaultCmp?.id || 'cmp-free-ats-score-inbound';
+      campaignId = defaultCmp?.id || null;
     }
 
     // 4. Calculate qualification score and priority based on ATS score & decision maker

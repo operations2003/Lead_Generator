@@ -17,8 +17,10 @@ import {
   ChevronRight,
   Building,
   Link as LinkIcon,
+  ShieldCheck,
 } from 'lucide-react';
 import { discoveryService } from '../../api';
+import { HunterProspectingTab } from './HunterProspectingTab';
 import {
   DiscoveredLead,
   DiscoveryJob,
@@ -62,6 +64,9 @@ export const AutoDiscoveryModal: React.FC<AutoDiscoveryModalProps> = ({
   onClose,
   onLeadsSaved,
 }) => {
+  // Discovery mode tab: Hunter.io B2B Prospecting vs Built-in Web Crawler
+  const [activeEngineTab, setActiveEngineTab] = useState<'hunter' | 'crawler'>('hunter');
+
   // Input fields (user only provides these 3)
   const [category, setCategory] = useState('Software Development');
   const [location, setLocation] = useState('Austin, TX');
@@ -370,8 +375,82 @@ export const AutoDiscoveryModal: React.FC<AutoDiscoveryModalProps> = ({
           </button>
         </div>
 
-        {/* Main Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Engine Selection Tab Bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '0 1.75rem',
+            borderBottom: '1px solid var(--border-color, #334155)',
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveEngineTab('hunter')}
+            style={{
+              padding: '12px 18px',
+              border: 'none',
+              borderBottom: activeEngineTab === 'hunter' ? '2px solid #3b82f6' : '2px solid transparent',
+              backgroundColor: 'transparent',
+              color: activeEngineTab === 'hunter' ? '#60a5fa' : 'var(--text-muted)',
+              fontWeight: activeEngineTab === 'hunter' ? 700 : 500,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <ShieldCheck size={16} />
+            <span>Hunter.io B2B Prospecting (Official API)</span>
+            <span
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: '999px',
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                color: '#60a5fa',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+              }}
+            >
+              Hunter API v2
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveEngineTab('crawler')}
+            style={{
+              padding: '12px 18px',
+              border: 'none',
+              borderBottom: activeEngineTab === 'crawler' ? '2px solid #3b82f6' : '2px solid transparent',
+              backgroundColor: 'transparent',
+              color: activeEngineTab === 'crawler' ? '#60a5fa' : 'var(--text-muted)',
+              fontWeight: activeEngineTab === 'crawler' ? 700 : 500,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Compass size={16} />
+            <span>Multi-Source Web Discovery & Scraping</span>
+          </button>
+        </div>
+
+        {activeEngineTab === 'hunter' ? (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+            <HunterProspectingTab onLeadsSaved={onLeadsSaved} />
+          </div>
+        ) : (
+          /* Main Body */
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Top Form: Business Category, Target Location, Max Number */}
           <form
             onSubmit={handleStartDiscovery}
@@ -1140,6 +1219,7 @@ export const AutoDiscoveryModal: React.FC<AutoDiscoveryModalProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Outreach Quick Compose Sub-Modal */}
         {outreachLead && (

@@ -588,7 +588,7 @@ export const migrations: Migration[] = [
 
       // 9. Seed Sample Campaigns & Link Existing Leads
       const campaignCount = db.prepare('SELECT COUNT(*) as count FROM campaigns').get() as { count: number };
-      if (campaignCount.count === 0) {
+      if (campaignCount.count === 0 && (process.env.SEED_DEMO_DATA === 'true' || process.env.NODE_ENV === 'test')) {
         const seedCampaigns = [
           {
             id: 'cmp-q4-hiring-drive',
@@ -1143,6 +1143,13 @@ export async function seedDatabase(db: DatabaseSync): Promise<void> {
 
   for (const u of seedUsers) {
     insertUserStmt.run(u.id, u.email, u.password_hash, u.first_name, u.last_name, u.role, u.status);
+  }
+
+  // Only seed mock CRM demo data (companies, contacts, leads, activities, follow-ups)
+  // if explicitly enabled or running in a test environment.
+  const shouldSeedDemoData = process.env.SEED_DEMO_DATA === 'true' || process.env.NODE_ENV === 'test';
+  if (!shouldSeedDemoData) {
+    return;
   }
 
   // Seed Companies for IT Mapping
